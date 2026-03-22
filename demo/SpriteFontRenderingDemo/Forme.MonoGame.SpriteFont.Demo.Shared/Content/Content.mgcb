@@ -1,0 +1,23 @@
+
+#----------------------------- Global Properties ----------------------------#
+
+/outputDir:bin/$(Platform)
+/intermediateDir:obj/$(Platform)
+/platform:Windows
+/config:
+/profile:HiDef
+/compress:False
+
+#-------------------------------- References --------------------------------#
+
+/reference:..\..\..\..\.artifacts\src\bin\Forme.MonoGame.Content.Pipeline\debug\Forme.MonoGame.Content.Pipeline.dll
+
+#---------------------------------- Content ---------------------------------#
+
+#begin NotoSans-Regular.TTF
+/importer:FormeTtfImporter
+/processor:FormeSpriteAtlasProcessor
+/processorParam:SizePixels=32
+/processorParam:CharacterSet=ASCII
+/build:NotoSans-Regular.TTF
+

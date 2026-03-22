@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <SolutionDirectory>$(MSBuildThisFileDirectory)</SolutionDirectory>
+    </PropertyGroup>
+
+    <!-- Version Configuration -->
+    <PropertyGroup>
+        <Version>0.0.1</Version>
+        <MonoGameVersion>3.8.4.1</MonoGameVersion>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <Authors>Christopher Whitley (AristurtleDev)</Authors>
+        <PackageProjectUrl>https://github.com/aristurtledev/forme</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/aristurtledev/forme</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <RepositoryBranch>develop</RepositoryBranch>
+        <NeutralLanguage>en</NeutralLanguage>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- path must be relative to the individual csproj's not this .targets file -->
+        <None Include="../../README.md" Pack="true" PackagePath="" />
+    </ItemGroup>
+
+</Project>

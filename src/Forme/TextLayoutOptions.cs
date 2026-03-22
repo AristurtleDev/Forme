@@ -1,0 +1,50 @@
+// Copyright (c) Christopher Whitley (AristurtleDev). All rights reserved.
+// Licensed under the MIT license.
+// See LICENSE file in the project root for full license information.
+
+namespace Forme;
+
+/// <summary>
+/// Configuration for text layout operations such as measurement, glyph enumeration, and wrapping.
+/// </summary>
+/// <remarks>
+/// All properties default to values that produce single-line, left-aligned text with no additional
+/// spacing and no width constraint, matching the behavior of a plain <c>DrawString</c> call.
+/// </remarks>
+public readonly struct TextLayoutOptions
+{
+    /// <summary>
+    /// Gets the maximum line width in pixels. When <see langword="null"/>, lines are not constrained.
+    /// </summary>
+    /// <remarks>
+    /// When set with <see cref="EllipsisMode"/> equal to <see cref="Forme.EllipsisMode.None"/>,
+    /// text wraps to multiple lines at word boundaries. When set with any other
+    /// <see cref="EllipsisMode"/>, text is truncated to a single line with the ellipsis string appended.
+    /// </remarks>
+    public float? MaxWidth { get; init; }
+
+    /// <summary>
+    /// Gets the horizontal alignment of each line relative to the draw origin.
+    /// </summary>
+    public TextHorizontalAlignment Alignment { get; init; }
+
+    /// <summary>
+    /// Gets additional spacing in pixels added between each character, beyond the font's natural advance width.
+    /// </summary>
+    public float CharacterSpacing { get; init; }
+
+    /// <summary>
+    /// Gets additional spacing in pixels added between lines, beyond the font's natural line height.
+    /// </summary>
+    public float LineSpacing { get; init; }
+
+    /// <summary>
+    /// Gets the ellipsis truncation mode applied when text exceeds <see cref="MaxWidth"/>.
+    /// </summary>
+    public EllipsisMode EllipsisMode { get; init; }
+
+    /// <summary>
+    /// Gets the string appended to truncated text. When <see langword="null"/>, <c>"..."</c> is used.
+    /// </summary>
+    public string? EllipsisString { get; init; }
+}

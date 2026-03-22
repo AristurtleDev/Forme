@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>AristurtleDev.Forme.MonoGame.Content.Pipeline</PackageId>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- ExcludeAssets="runtime;native" keeps these available at compile time but prevents their
+         DLLs from being copied to the output; MGCB Editor supplies them at load time. -->
+    <PackageReference Include="MonoGame.Framework.Content.Pipeline"
+                      Version="$(MonoGameVersion)"
+                      ExcludeAssets="runtime;native"
+                      PrivateAssets="All" />
+    <PackageReference Include="MonoGame.Framework.DesktopGL"
+                      Version="$(MonoGameVersion)"
+                      ExcludeAssets="runtime;native"
+                      PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Forme\Forme.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="$(ArtifactsPath)/bin/Forme.MonoGame.Content.Pipeline/$(Configuration.ToLower())/*.dll" Pack="true" PackagePath="lib/$(TargetFramework)/" />
+  </ItemGroup>
+
+</Project>

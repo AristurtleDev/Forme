@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>AristurtleDev.Forme.MonoGame</PackageId>
+    <RootNamespace>Forme.MonoGame</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MonoGame.Framework.DesktopGL"
+                      Version="$(MonoGameVersion)"
+                      PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Forme\Forme.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Compiled shader binaries are committed to the repo so consumers do not need mgfxc.
+         The Compile* targets only run when the .fx source is newer than the .mgfxo. -->
+    <EmbeddedResource Include="Shaders\FormeShader.ogl.mgfxo" />
+    <EmbeddedResource Include="Shaders\FormeShader.dx11.mgfxo" />
+  </ItemGroup>
+
+  <Target Name="CompileShadersOGL" BeforeTargets="BeforeBuild"
+          Inputs="Shaders\FormeShader.fx"
+          Outputs="Shaders\FormeShader.ogl.mgfxo">
+    <Exec Command="dotnet tool run mgfxc Shaders\FormeShader.fx Shaders\FormeShader.ogl.mgfxo /Profile:OpenGL" />
+  </Target>
+
+  <!-- Both backends compile from the same FormeShader.fx source for consistency and low
+       maintenance. The DX11 profile compilation requires Windows (D3DCompile). The .mgfxo
+       is committed to the repo so non-Windows CI builds continue without this tool. -->
+  <Target Name="CompileShadersDX11" BeforeTargets="BeforeBuild"
+          Inputs="Shaders\FormeShader.fx"
+          Outputs="Shaders\FormeShader.dx11.mgfxo"
+          Condition="'$(OS)' == 'Windows_NT'">
+    <Exec Command="dotnet tool run mgfxc Shaders\FormeShader.fx Shaders\FormeShader.dx11.mgfxo /Profile:DirectX_11" />
+  </Target>
+
+</Project>

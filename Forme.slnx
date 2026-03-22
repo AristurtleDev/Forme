@@ -1,0 +1,22 @@
+<Solution>
+  <Folder Name="/demo/" />
+  <Folder Name="/demo/GPURenderingDemo/">
+    <Project Path="demo/GPURenderingDemo/Forme.MonoGame.GPU.Demo.DesktopGL/Forme.MonoGame.GPU.Demo.DesktopGL.csproj" />
+    <Project Path="demo/GPURenderingDemo/Forme.MonoGame.GPU.Demo.Shared/Forme.MonoGame.GPU.Demo.Shared.csproj" />
+    <Project Path="demo/GPURenderingDemo/Forme.MonoGame.GPU.Demo.WindowsDX/Forme.MonoGame.GPU.Demo.WindowsDX.csproj" />
+  </Folder>
+  <Folder Name="/demo/SpriteFontRenderingDemo/">
+    <Project Path="demo/SpriteFontRenderingDemo/Forme.MonoGame.SpriteFont.Demo.DesktopGL/Forme.MonoGame.SpriteFont.Demo.DesktopGL.csproj" />
+    <Project Path="demo/SpriteFontRenderingDemo/Forme.MonoGame.SpriteFont.Demo.Shared/Forme.MonoGame.SpriteFont.Demo.Shared.csproj" />
+    <Project Path="demo/SpriteFontRenderingDemo/Forme.MonoGame.SpriteFont.Demo.WindowsDX/Forme.MonoGame.SpriteFont.Demo.WindowsDX.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Forme.MonoGame.Content.Pipeline/Forme.MonoGame.Content.Pipeline.csproj" />
+    <Project Path="src/Forme.MonoGame/Forme.MonoGame.csproj" />
+    <Project Path="src/Forme/Forme.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Forme.Tests/Forme.Tests.csproj" />
+    <Project Path="tests/Forme.Content.Pipeline.Tests/Forme.Content.Pipeline.Tests.csproj" />
+  </Folder>
+</Solution>

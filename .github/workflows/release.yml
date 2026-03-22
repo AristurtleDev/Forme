@@ -1,0 +1,87 @@
+################################################################################
+### Build Forme (Release)
+### Builds, tests, and packs the Forme source libraries.
+### Once the build job finishes, the deploy job uploads the nupkg files to NuGet.
+###
+###     - Can be triggered manually with workflow_dispatch
+###     - Allows specifying a branch (defaults to main)
+###     - Version numbers are determined by the project properties on the branch
+################################################################################
+name: "Create Release"
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to build from (e.g., main, develop)'
+        required: true
+        type: string
+        default: 'develop'
+
+jobs:
+  build:
+    name: "Build Forme"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clone Repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: Setup Dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Build Forme
+        run: dotnet build src/Forme/Forme.csproj --nologo --verbosity minimal --configuration Release
+
+      - name: Build Forme.MonoGame
+        run: dotnet build src/Forme.MonoGame/Forme.MonoGame.csproj --nologo --verbosity minimal --configuration Release
+
+      - name: Build Forme.MonoGame.Content.Pipeline
+        run: dotnet build src/Forme.MonoGame.Content.Pipeline/Forme.MonoGame.Content.Pipeline.csproj --nologo --verbosity minimal --configuration Release
+
+      - name: Test Forme
+        run: dotnet test tests/Forme.Tests/Forme.Tests.csproj --nologo --verbosity minimal --configuration Release
+
+      - name: Test Forme.Content.Pipeline
+        run: dotnet test tests/Forme.Content.Pipeline.Tests/Forme.Content.Pipeline.Tests.csproj --nologo --verbosity minimal --configuration Release
+
+      - name: Pack Forme
+        run: dotnet pack src/Forme/Forme.csproj --nologo --verbosity minimal --configuration Release
+
+      - name: Pack Forme.MonoGame
+        run: dotnet pack src/Forme.MonoGame/Forme.MonoGame.csproj --nologo --verbosity minimal --configuration Release
+
+      - name: Pack Forme.MonoGame.Content.Pipeline
+        run: dotnet pack src/Forme.MonoGame.Content.Pipeline/Forme.MonoGame.Content.Pipeline.csproj --nologo --verbosity minimal --configuration Release
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: ./.artifacts/src/**/*.nupkg
+
+  deploy:
+    name: "Deploy NuGets"
+    runs-on: ubuntu-latest
+    needs: [ build ]
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: ./.artifacts
+
+      - name: Push Packages to NuGet
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_ACCESS_TOKEN }}
+        run: |
+          for PACKAGE in .artifacts/**/*.nupkg; do
+            dotnet nuget push "$PACKAGE" --source https://api.nuget.org/v3/index.json --skip-duplicate --api-key "$NUGET_API_KEY"
+          done

@@ -1,0 +1,586 @@
+// Copyright (c) Christopher Whitley (AristurtleDev). All rights reserved.
+// Licensed under the MIT license.
+// See LICENSE file in the project root for full license information.
+
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
+using Forme.Internal;
+
+namespace Forme;
+
+/// <summary>
+/// Represents a processed font containing all data required to render glyphs using
+/// the Slug algorithm.
+/// </summary>
+/// <remarks>
+/// <para>
+/// A <see cref="FormeFont"/> holds two GPU texture datasets: a curve texture (RGBA32F)
+/// encoding the quadratic Bezier control points for each glyph, and a band texture
+/// (RG32F) encoding the spatial acceleration structure. Both textures are 4096 texels
+/// wide.
+/// </para>
+/// <para>
+/// Create instances via <see cref="FromTtf"/> or <see cref="FromFile"/>. Persist
+/// processed data with <see cref="Save(string)"/> to avoid reprocessing the TTF at
+/// startup.
+/// </para>
+/// </remarks>
+public sealed class FormeFont
+{
+    /// <summary>
+    /// Gets the vertical metrics for this font.
+    /// </summary>
+    public FontMetrics Metrics { get; }
+
+    /// <summary>
+    /// Gets the processed glyphs, keyed by Unicode code point.
+    /// </summary>
+    /// <remarks>
+    /// Only glyphs in the <see cref="CharacterSet"/> specified during processing are
+    /// present. Glyphs with no outline (e.g. space) and glyphs not found in the font
+    /// are omitted.
+    /// </remarks>
+    public IReadOnlyDictionary<int, FormeGlyph> Glyphs { get; }
+
+    /// <summary>
+    /// Gets the curve texture dataset (RGBA32F, 4 floats per texel). Always 4096 texels wide.
+    /// </summary>
+    public FormeTextureData CurveTexture { get; }
+
+    /// <summary>
+    /// Gets the band texture dataset (RG32F, 2 floats per texel). Always 4096 texels wide.
+    /// </summary>
+    public FormeTextureData BandTexture { get; }
+
+    internal FormeFont(FontMetrics metrics, Dictionary<int, FormeGlyph> glyphs, FormeTextureData curveTexture, FormeTextureData bandTexture)
+    {
+        Metrics = metrics;
+        Glyphs = glyphs;
+        CurveTexture = curveTexture;
+        BandTexture = bandTexture;
+    }
+
+    /// <summary>
+    /// Processes the specified glyphs from a TrueType font and returns a
+    /// <see cref="FormeFont"/> ready for rendering.
+    /// </summary>
+    /// <param name="ttfData">Raw bytes of a TrueType (.ttf) or OpenType (.otf) font file.</param>
+    /// <param name="charset">The set of Unicode code points to process.</param>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="ttfData"/> or <paramref name="charset"/> is null.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when <paramref name="ttfData"/> cannot be parsed as a valid font.
+    /// </exception>
+    public static FormeFont FromTtf(byte[] ttfData, CharacterSet charset)
+    {
+        ArgumentNullException.ThrowIfNull(ttfData);
+        ArgumentNullException.ThrowIfNull(charset);
+
+        using FontProcessor processor = new FontProcessor();
+        processor.Load(ttfData);
+
+        foreach (int codePoint in charset.Codepoints)
+        {
+            processor.ProcessCodePoint(codePoint);
+        }
+
+        return processor.Build();
+    }
+
+    /// <summary>
+    /// Loads a <see cref="FormeFont"/> from a <c>.forme</c> file on disk.
+    /// </summary>
+    /// <param name="path">The path to the <c>.forme</c> file.</param>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="path"/> is <see langword="null"/> or an empty string.
+    /// </exception>
+    /// <exception cref="FileNotFoundException">Thrown when the file does not exist.</exception>
+    /// <exception cref="InvalidDataException">
+    /// Thrown when the file does not contain valid <c>.forme</c> data.
+    /// </exception>
+    /// <exception cref="NotSupportedException">
+    /// Thrown when the file was written by a newer version of Forme.
+    /// </exception>
+    public static FormeFont FromFile(string path)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(path);
+
+        using FileStream stream = File.OpenRead(path);
+        return FormeFileReader.Read(stream);
+    }
+
+    /// <summary>
+    /// Loads a <see cref="FormeFont"/> from a stream containing <c>.forme</c> binary data.
+    /// </summary>
+    /// <param name="stream">A readable stream positioned at the start of <c>.forme</c> data.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
+    /// <exception cref="InvalidDataException">
+    /// Thrown when the stream does not contain valid <c>.forme</c> data.
+    /// </exception>
+    /// <exception cref="NotSupportedException">
+    /// Thrown when the data was written by a newer version of Forme.
+    /// </exception>
+    public static FormeFont FromStream(Stream stream)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+
+        return FormeFileReader.Read(stream);
+    }
+
+    /// <summary>
+    /// Saves this <see cref="FormeFont"/> to a <c>.forme</c> file on disk.
+    /// </summary>
+    /// <param name="path">The destination file path. The file is created or overwritten.</param>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="path"/> is <see langword="null"/> or an empty string.
+    /// </exception>
+    public void Save(string path)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(path);
+
+        using FileStream stream = File.Create(path);
+        FormeFileWriter.Write(this, stream);
+    }
+
+    /// <summary>
+    /// Saves this <see cref="FormeFont"/> to the given stream in <c>.forme</c> binary format.
+    /// </summary>
+    /// <param name="stream">A writable stream. The stream is not closed after writing.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
+    public void Save(Stream stream)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+
+        FormeFileWriter.Write(this, stream);
+    }
+
+    /// <summary>
+    /// Returns the natural line height in pixels at the given size, based solely on font metrics.
+    /// </summary>
+    /// <param name="sizePixels">The em-square height in pixels.</param>
+    /// <returns>
+    /// The distance in pixels from one baseline to the next, equal to
+    /// <c>(Ascent - Descent + LineGap) * (sizePixels / UnitsPerEm)</c>.
+    /// </returns>
+    public float GetLineHeight(float sizePixels)
+        => (Metrics.Ascent - Metrics.Descent + Metrics.LineGap) * (sizePixels / Math.Max(1, Metrics.UnitsPerEm));
+
+    /// <summary>
+    /// Measures the bounding rectangle of the given text at the specified size.
+    /// </summary>
+    /// <param name="text">The text to measure.</param>
+    /// <param name="sizePixels">The em-square height in pixels.</param>
+    /// <returns>
+    /// Bounds in pixels relative to a draw origin at (0, 0). Y is negative for glyphs
+    /// extending above the baseline; Y2 is positive for descenders below it.
+    /// </returns>
+    public FormeTextBounds MeasureString(ReadOnlySpan<char> text, float sizePixels)
+    {
+        TextLayoutOptions options = default;
+        return MeasureString(text, sizePixels, in options);
+    }
+
+    /// <summary>
+    /// Measures the bounding rectangle of the given text at the specified size using the
+    /// provided layout options.
+    /// </summary>
+    /// <param name="text">The text to measure.</param>
+    /// <param name="sizePixels">The em-square height in pixels.</param>
+    /// <param name="options">Layout options controlling wrapping, spacing, and ellipsis.</param>
+    /// <returns>
+    /// Bounds in pixels relative to a draw origin at (0, 0). Width reflects the widest line;
+    /// height spans from the top of the ascenders on the first line to the bottom of the
+    /// descenders on the last line.
+    /// </returns>
+    public FormeTextBounds MeasureString(ReadOnlySpan<char> text, float sizePixels, in TextLayoutOptions options)
+    {
+        if (text.IsEmpty)
+        {
+            return FormeTextBounds.Empty;
+        }
+
+        float scale = sizePixels / Math.Max(1, Metrics.UnitsPerEm);
+        float lineHeight = GetLineHeight(sizePixels) + options.LineSpacing;
+
+        List<List<CodePointEntry>> lines = BuildLines(text, scale, in options);
+
+        if (lines.Count == 0)
+        {
+            return FormeTextBounds.Empty;
+        }
+
+        float maxLineWidth = 0f;
+        foreach (List<CodePointEntry> line in lines)
+        {
+            float lineWidth = MeasureLineWidth(line, scale, options.CharacterSpacing);
+            if (lineWidth > maxLineWidth)
+            {
+                maxLineWidth = lineWidth;
+            }
+        }
+
+        return new FormeTextBounds(
+            x: 0f,
+            y: -(Metrics.Ascent * scale),
+            x2: maxLineWidth,
+            y2: (lines.Count - 1) * lineHeight + (-Metrics.Descent * scale));
+    }
+
+    /// <summary>
+    /// Returns the layout-computed position and metrics for each glyph in the given text.
+    /// </summary>
+    /// <param name="text">The text to lay out.</param>
+    /// <param name="sizePixels">The em-square height in pixels.</param>
+    /// <returns>
+    /// One <see cref="GlyphPlacement"/> per code point found in <see cref="Glyphs"/>,
+    /// with positions relative to a draw origin at (0, 0).
+    /// </returns>
+    public IReadOnlyList<GlyphPlacement> GetGlyphs(ReadOnlySpan<char> text, float sizePixels)
+    {
+        TextLayoutOptions options = default;
+        return GetGlyphs(text, sizePixels, in options);
+    }
+
+    /// <summary>
+    /// Returns the layout-computed position and metrics for each glyph in the given text,
+    /// applying the provided layout options.
+    /// </summary>
+    /// <param name="text">The text to lay out.</param>
+    /// <param name="sizePixels">The em-square height in pixels.</param>
+    /// <param name="options">Layout options controlling wrapping, spacing, alignment, and ellipsis.</param>
+    /// <returns>
+    /// One <see cref="GlyphPlacement"/> per code point found in <see cref="Glyphs"/>,
+    /// with positions relative to a draw origin at (0, 0).
+    /// </returns>
+    public IReadOnlyList<GlyphPlacement> GetGlyphs(ReadOnlySpan<char> text, float sizePixels, in TextLayoutOptions options)
+    {
+        float scale = sizePixels / Math.Max(1, Metrics.UnitsPerEm);
+        float lineHeight = GetLineHeight(sizePixels) + options.LineSpacing;
+
+        List<GlyphPlacement> placements = new();
+        BuildPlacements(text, scale, lineHeight, in options, placements);
+        return placements;
+    }
+
+    private void BuildPlacements(ReadOnlySpan<char> text, float scale, float lineHeight, in TextLayoutOptions options, List<GlyphPlacement> output)
+    {
+        List<List<CodePointEntry>> lines = BuildLines(text, scale, in options);
+        float cursorY = 0f;
+
+        foreach (List<CodePointEntry> line in lines)
+        {
+            float lineWidth = MeasureLineWidth(line, scale, options.CharacterSpacing);
+            float cursorX = options.Alignment switch
+            {
+                TextHorizontalAlignment.Center => -lineWidth * 0.5f,
+                TextHorizontalAlignment.Right => -lineWidth,
+                _ => 0f
+            };
+
+            foreach (CodePointEntry entry in line)
+            {
+                if (Glyphs.TryGetValue(entry.CodePoint, out FormeGlyph glyph))
+                {
+                    float advance = glyph.AdvanceWidth * scale + options.CharacterSpacing;
+                    FormeTextBounds vb = ComputeVisualBounds(in glyph, cursorX, cursorY, scale);
+                    output.Add(new GlyphPlacement(entry.Index, entry.CodePoint, cursorX, cursorY, vb, advance));
+                    cursorX += advance;
+                }
+            }
+
+            cursorY += lineHeight;
+        }
+    }
+
+    private List<List<CodePointEntry>> BuildLines(ReadOnlySpan<char> text, float scale, in TextLayoutOptions options)
+    {
+        List<List<CodePointEntry>> result = new();
+
+        if (options.MaxWidth.HasValue && options.EllipsisMode != EllipsisMode.None)
+        {
+            BuildEllipsisLine(text, scale, in options, result);
+            return result;
+        }
+
+        int lineStart = 0;
+        while (lineStart <= text.Length)
+        {
+            int newlineAt = text[lineStart..].IndexOf('\n');
+            int segEnd = newlineAt < 0 ? text.Length : lineStart + newlineAt;
+            ReadOnlySpan<char> segment = text[lineStart..segEnd];
+
+            if (options.MaxWidth.HasValue)
+            {
+                WrapSegment(segment, lineStart, scale, in options, result);
+            }
+            else
+            {
+                result.Add(DecodeSegment(segment, lineStart));
+            }
+
+            if (newlineAt < 0)
+            {
+                break;
+            }
+
+            lineStart = lineStart + newlineAt + 1;
+        }
+
+        return result;
+    }
+
+    private void WrapSegment(
+        ReadOnlySpan<char> segment,
+        int segmentOffset,
+        float scale,
+        in TextLayoutOptions options,
+        List<List<CodePointEntry>> output)
+    {
+        float maxWidth = options.MaxWidth!.Value;
+
+        List<CodePointWithAdvance> chars = new(segment.Length);
+        int i = 0;
+        while (i < segment.Length)
+        {
+            Rune.DecodeFromUtf16(segment[i..], out Rune rune, out int consumed);
+            float advance = 0f;
+            if (Glyphs.TryGetValue(rune.Value, out FormeGlyph g))
+            {
+                advance = g.AdvanceWidth * scale + options.CharacterSpacing;
+            }
+            chars.Add(new CodePointWithAdvance(segmentOffset + i, rune.Value, advance));
+            i += consumed;
+        }
+
+        if (chars.Count == 0)
+        {
+            output.Add(new List<CodePointEntry>());
+            return;
+        }
+
+        int lineStart = 0;
+        while (lineStart < chars.Count)
+        {
+            float lineWidth = 0f;
+            int lineEnd = lineStart;
+            int lastBreakAt = -1;
+
+            while (lineEnd < chars.Count)
+            {
+                // Always take at least one character per line to avoid an infinite loop on
+                // single characters that exceed maxWidth.
+                if (lineEnd > lineStart && lineWidth + chars[lineEnd].Advance > maxWidth)
+                {
+                    break;
+                }
+
+                if (chars[lineEnd].CodePoint == ' ')
+                {
+                    lastBreakAt = lineEnd;
+                }
+
+                lineWidth += chars[lineEnd].Advance;
+                lineEnd++;
+            }
+
+            int actualEnd;
+            int nextStart;
+
+            if (lineEnd >= chars.Count)
+            {
+                actualEnd = chars.Count;
+                nextStart = chars.Count;
+            }
+            else if (lastBreakAt >= lineStart)
+            {
+                // Break at the space; the space is not included on either line.
+                actualEnd = lastBreakAt;
+                nextStart = lastBreakAt + 1;
+            }
+            else
+            {
+                // No break point in range; forced break.
+                actualEnd = lineEnd;
+                nextStart = lineEnd;
+            }
+
+            List<CodePointEntry> line = new(actualEnd - lineStart);
+            for (int j = lineStart; j < actualEnd; j++)
+            {
+                line.Add(new CodePointEntry(chars[j].Index, chars[j].CodePoint));
+            }
+            output.Add(line);
+
+            lineStart = nextStart;
+        }
+    }
+
+    private void BuildEllipsisLine(
+        ReadOnlySpan<char> text,
+        float scale,
+        in TextLayoutOptions options,
+        List<List<CodePointEntry>> output)
+    {
+        float maxWidth = options.MaxWidth!.Value;
+        string ellipsisStr = options.EllipsisString ?? "...";
+
+        float ellipsisWidth = MeasureStringWidth(ellipsisStr.AsSpan(), scale, options.CharacterSpacing);
+        float availableWidth = maxWidth - ellipsisWidth;
+
+        List<CodePointEntry> line = new();
+        float cursorWidth = 0f;
+        int truncationIndex = text.Length;
+        int lastWordBoundary = 0;
+        bool prevWasSpace = true;
+
+        int i = 0;
+        while (i < text.Length)
+        {
+            if (text[i] == '\n')
+            {
+                i++;
+                continue;
+            }
+
+            Rune.DecodeFromUtf16(text[i..], out Rune rune, out int consumed);
+            int cp = rune.Value;
+
+            float advance = 0f;
+            if (Glyphs.TryGetValue(cp, out FormeGlyph g))
+            {
+                advance = g.AdvanceWidth * scale + options.CharacterSpacing;
+            }
+
+            if (cursorWidth + advance > availableWidth)
+            {
+                truncationIndex = i;
+                break;
+            }
+
+            // Record where the last complete word ended, for Word ellipsis mode.
+            if (cp == ' ' && !prevWasSpace)
+            {
+                lastWordBoundary = line.Count;
+            }
+            prevWasSpace = (cp == ' ');
+
+            line.Add(new CodePointEntry(i, cp));
+            cursorWidth += advance;
+            i += consumed;
+        }
+
+        bool truncated = i < text.Length;
+
+        if (truncated)
+        {
+            if (options.EllipsisMode == EllipsisMode.Word && lastWordBoundary > 0)
+            {
+                while (line.Count > lastWordBoundary)
+                {
+                    line.RemoveAt(line.Count - 1);
+                }
+
+                // Strip trailing spaces left before the word boundary.
+                while (line.Count > 0 && line[line.Count - 1].CodePoint == ' ')
+                {
+                    line.RemoveAt(line.Count - 1);
+                }
+            }
+
+            int ei = 0;
+            while (ei < ellipsisStr.Length)
+            {
+                Rune.DecodeFromUtf16(ellipsisStr.AsSpan(ei), out Rune er, out int ec);
+                line.Add(new CodePointEntry(truncationIndex, er.Value));
+                ei += ec;
+            }
+        }
+
+        output.Add(line);
+    }
+
+    private float MeasureLineWidth(List<CodePointEntry> line, float scale, float charSpacing)
+    {
+        float width = 0f;
+        foreach (CodePointEntry entry in line)
+        {
+            if (Glyphs.TryGetValue(entry.CodePoint, out FormeGlyph g))
+            {
+                width += g.AdvanceWidth * scale + charSpacing;
+            }
+        }
+        return width;
+    }
+
+    private float MeasureStringWidth(ReadOnlySpan<char> text, float scale, float charSpacing)
+    {
+        float width = 0f;
+        int i = 0;
+        while (i < text.Length)
+        {
+            Rune.DecodeFromUtf16(text[i..], out Rune rune, out int consumed);
+            if (Glyphs.TryGetValue(rune.Value, out FormeGlyph g))
+            {
+                width += g.AdvanceWidth * scale + charSpacing;
+            }
+            i += consumed;
+        }
+        return width;
+    }
+
+    private static List<CodePointEntry> DecodeSegment(ReadOnlySpan<char> segment, int offset)
+    {
+        List<CodePointEntry> list = new(segment.Length);
+        int i = 0;
+        while (i < segment.Length)
+        {
+            Rune.DecodeFromUtf16(segment[i..], out Rune rune, out int consumed);
+            list.Add(new CodePointEntry(offset + i, rune.Value));
+            i += consumed;
+        }
+        return list;
+    }
+
+    private static FormeTextBounds ComputeVisualBounds(in FormeGlyph glyph, float baselineX, float baselineY, float scale)
+    {
+        if (glyph.BandInfo.Count == 0)
+        {
+            return new FormeTextBounds(baselineX, baselineY, baselineX, baselineY);
+        }
+
+        return new FormeTextBounds(
+            x: baselineX + glyph.BoundingBox.X1 * scale,
+            y: baselineY - glyph.BoundingBox.Y2 * scale,
+            x2: baselineX + glyph.BoundingBox.X2 * scale,
+            y2: baselineY - glyph.BoundingBox.Y1 * scale);
+    }
+
+    private readonly struct CodePointEntry
+    {
+        internal int Index { get; }
+        internal int CodePoint { get; }
+
+        internal CodePointEntry(int index, int codePoint)
+        {
+            Index = index;
+            CodePoint = codePoint;
+        }
+    }
+
+    private readonly struct CodePointWithAdvance
+    {
+        internal int Index { get; }
+        internal int CodePoint { get; }
+        internal float Advance { get; }
+
+        internal CodePointWithAdvance(int index, int codePoint, float advance)
+        {
+            Index = index;
+            CodePoint = codePoint;
+            Advance = advance;
+        }
+    }
+}

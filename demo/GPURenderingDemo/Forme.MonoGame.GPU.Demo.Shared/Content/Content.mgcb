@@ -1,0 +1,28 @@
+
+#----------------------------- Global Properties ----------------------------#
+
+/outputDir:bin/$(Platform)
+/intermediateDir:obj/$(Platform)
+/platform:Windows
+/config:
+/profile:HiDef
+/compress:False
+
+#-------------------------------- References --------------------------------#
+
+/reference:..\..\..\..\.artifacts\src\bin\Forme.MonoGame.Content.Pipeline\debug\Forme.MonoGame.Content.Pipeline.dll
+
+#---------------------------------- Content ---------------------------------#
+
+#begin NotoEmoji-Regular.TTF
+/importer:FormeTtfImporter
+/processor:FormeFontProcessor
+/processorParam:CharacterSet=9728-9983,9984-10175,127744-128511,128512-128591,128640-128767,129280-129535
+/build:NotoEmoji-Regular.TTF
+
+#begin NotoSans-Regular.TTF
+/importer:FormeTtfImporter
+/processor:FormeFontProcessor
+/processorParam:CharacterSet=ASCII,1024-1279,42560-42655
+/build:NotoSans-Regular.TTF
+

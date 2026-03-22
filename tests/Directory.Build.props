@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+
+    <Import Project="$(MSBuildThisFileDirectory)..\Directory.Build.props" />
+
+    <PropertyGroup>
+        <ArtifactsPath>$(SolutionDirectory).artifacts/tests</ArtifactsPath>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <IsPackable>false</IsPackable>
+        <NoWarn>CA1707</NoWarn>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="xunit"
+                          Version="2.9.3"
+                          IsImplicitlyDefined="true" />
+
+        <PackageReference Include="Microsoft.NET.Test.Sdk"
+                          Version="17.14.1"
+                          IsImplicitlyDefined="true" />
+
+        <PackageReference Include="xunit.runner.visualstudio"
+                          Version="2.9.3"
+                          IsImplicitlyDefined="true"
+                          IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive"
+                          PrivateAssets="all" />
+
+        <PackageReference Include="coverlet.collector"
+                          Version="6.0.4"
+                          IsImplicitlyDefined="true"
+                          IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive"
+                          PrivateAssets="all" />
+    </ItemGroup>
+
+</Project>
