@@ -195,6 +195,7 @@ float FormeRender(float2 renderCoord, float4 bandTransform, float4 glyphTexInfo)
 
     // Loop over all curves in the horizontal band.
     float xcov = 0.0;
+    float xwgt = 0.0;
 
     float2 hBandHeader  = FetchBandTexel(bandTexSize, glyphBaseTexel + bandIndexY);
     float  hCurveCount  = hBandHeader.r;
@@ -215,14 +216,15 @@ float FormeRender(float2 renderCoord, float4 bandTransform, float4 glyphTexInfo)
         {
             float2 r = SolveHorizPoly(p12, p3) * pixelsPerEm.x;
 
-            if (elig.x > 0.5) xcov += saturate(r.x + 0.5);
-            if (elig.y > 0.5) xcov -= saturate(r.y + 0.5);
+            if (elig.x > 0.5) { xcov += saturate(r.x + 0.5); xwgt = max(xwgt, saturate(1.0 - abs(r.x) * 2.0)); }
+            if (elig.y > 0.5) { xcov -= saturate(r.y + 0.5); xwgt = max(xwgt, saturate(1.0 - abs(r.y) * 2.0)); }
         }
     }
 
     // Loop over all curves in the vertical band. Swap x and y to reuse the
     // horizontal solver and eligibility logic.
     float ycov = 0.0;
+    float ywgt = 0.0;
 
     float2 vBandHeader  = FetchBandTexel(bandTexSize, glyphBaseTexel + bandCount + bandIndexX);
     float  vCurveCount  = vBandHeader.r;
@@ -247,20 +249,21 @@ float FormeRender(float2 renderCoord, float4 bandTransform, float4 glyphTexInfo)
         {
             float2 r = SolveHorizPoly(p12, p3) * pixelsPerEm.y;
 
-            if (elig.x > 0.5) ycov += saturate(r.x + 0.5);
-            if (elig.y > 0.5) ycov -= saturate(r.y + 0.5);
+            if (elig.x > 0.5) { ycov += saturate(r.x + 0.5); ywgt = max(ywgt, saturate(1.0 - abs(r.x) * 2.0)); }
+            if (elig.y > 0.5) { ycov -= saturate(r.y + 0.5); ywgt = max(ywgt, saturate(1.0 - abs(r.y) * 2.0)); }
         }
     }
 
-    float covX = min(abs(xcov), 1.0);
-    float covY = min(abs(ycov), 1.0);
+    float coverage = max(
+        abs(xcov * xwgt + ycov * ywgt) / max(xwgt + ywgt, 0.0001),
+        min(abs(xcov), abs(ycov)));
 
-    return saturate((covX + covY) * 0.5);
+    return sqrt(saturate(coverage));
 }
 
 float4 PS_Main(VSOutput input) : COLOR0
 {
-    float coverage = FormeRender(input.texcoord, input.banding, input.glyphLoc);
+    float  coverage = FormeRender(input.texcoord, input.banding, input.glyphLoc);
     return float4(input.color.rgb * coverage, coverage * input.color.a);
 }
 
