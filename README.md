@@ -178,10 +178,6 @@ The reference `SolveHorizPoly()` falls back to a linear solve when the quadratic
 
 The reference has separate `SolveHorizPoly` and `SolveVertPoly` functions. Forme eliminates `SolveVertPoly` by swapping the x and y components of the control points before passing them to `SolveHorizPoly`, reducing code duplication.
 
-### Coverage calculation simplified.
-
-The reference `CalcCoverage()` tracks per-ray coverage weights (`xwgt`, `ywgt`) to blend horizontal and vertical ray contributions, and supports `SLUG_EVENODD` and `SLUG_WEIGHT` compile-time modes. Forme uses a simpler `(covX + covY) * 0.5` average, which produces correct results for standard nonzero fill rule rendering without the additional weight tracking.
-
 ## Third-Party Credits
 
 ### Slug Algorithm
