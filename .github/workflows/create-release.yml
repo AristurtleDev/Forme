@@ -80,7 +80,7 @@ jobs:
 
       - name: Push Packages to NuGet
         env:
-          NUGET_API_KEY: ${{ secrets.NUGET_ACCESS_TOKEN }}
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
         run: |
           for PACKAGE in .artifacts/**/*.nupkg; do
             dotnet nuget push "$PACKAGE" --source https://api.nuget.org/v3/index.json --skip-duplicate --api-key "$NUGET_API_KEY"
