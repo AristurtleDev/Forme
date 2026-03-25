@@ -23,6 +23,11 @@ namespace Forme.MonoGame;
 /// <see cref="SurfaceFormat.Vector4"/> with RG32F data packed into XY and ZW set to zero;
 /// this is required because SM3/MojoShader cannot sample RG32F directly.
 /// </para>
+/// <para>
+/// The band LUT texture uses <see cref="SurfaceFormat.Vector4"/> (RGBA32F) and stores
+/// per-glyph band transform data (bandScaleX, bandScaleY, bandOffsetX, bandOffsetY) indexed
+/// by glyph.
+/// </para>
 /// </remarks>
 public sealed class FormeFontDevice : IDisposable
 {
@@ -42,9 +47,23 @@ public sealed class FormeFontDevice : IDisposable
     public Texture2D BandTexture { get; }
 
     /// <summary>
+    /// Gets the band LUT texture containing per-glyph band transform data (RGBA32F).
+    /// </summary>
+    /// <remarks>
+    /// Each texel stores (bandScaleX, bandScaleY, bandOffsetX, bandOffsetY) for one glyph.
+    /// The texture is at most 4096 texels wide; tall fonts use multiple rows.
+    /// </remarks>
+    public Texture2D BandLutTexture { get; }
+
+    /// <summary>
     /// Gets the glyph metadata dictionary, keyed by Unicode code point.
     /// </summary>
     public IReadOnlyDictionary<int, FormeGlyph> Glyphs { get; }
+
+    /// <summary>
+    /// Gets the precomputed band LUT UV coordinates, keyed by Unicode code point.
+    /// </summary>
+    internal IReadOnlyDictionary<int, Vector2> GlyphLutUVs { get; }
 
     /// <summary>
     /// Gets the font metrics (ascent, descent, units per em).
@@ -79,6 +98,9 @@ public sealed class FormeFontDevice : IDisposable
 
         CurveTexture = UploadCurveTexture(graphicsDevice, font);
         BandTexture = UploadBandTexture(graphicsDevice, font);
+
+        BandLutTexture = BuildBandLut(graphicsDevice, font, out Dictionary<int, Vector2> glyphLutUVs);
+        GlyphLutUVs = glyphLutUVs;
     }
 
     private static Texture2D UploadCurveTexture(GraphicsDevice graphicsDevice, FormeFont font)
@@ -128,6 +150,40 @@ public sealed class FormeFontDevice : IDisposable
         return texture;
     }
 
+    private static Texture2D BuildBandLut(
+        GraphicsDevice graphicsDevice, FormeFont font, out Dictionary<int, Vector2> uvs)
+    {
+        int glyphCount = Math.Max(1, font.Glyphs.Count);
+        int lutWidth   = Math.Min(glyphCount, 4096);
+        int lutHeight  = (glyphCount + 4095) / 4096;
+
+        Vector4[] data = new Vector4[lutWidth * lutHeight];
+        uvs = new Dictionary<int, Vector2>(glyphCount);
+
+        int index = 0;
+        foreach (KeyValuePair<int, FormeGlyph> kvp in font.Glyphs)
+        {
+            FormeGlyph g = kvp.Value;
+            float scaleX = 1.0f / Math.Max(1f, (float)g.BandInfo.DimX);
+            float scaleY = 1.0f / Math.Max(1f, (float)g.BandInfo.DimY);
+            data[index] = new Vector4(
+                scaleX,
+                scaleY,
+                -(float)g.BoundingBox.X1 * scaleX,
+                -(float)g.BoundingBox.Y1 * scaleY);
+
+            float u = (index % 4096 + 0.5f) / lutWidth;
+            float v = (index / 4096 + 0.5f) / lutHeight;
+            uvs[kvp.Key] = new Vector2(u, v);
+            index++;
+        }
+
+        Texture2D texture = new Texture2D(
+            graphicsDevice, lutWidth, lutHeight, false, SurfaceFormat.Vector4);
+        texture.SetData(data);
+        return texture;
+    }
+
     /// <summary>
     /// Releases the GPU textures owned by this instance.
     /// </summary>
@@ -141,5 +197,6 @@ public sealed class FormeFontDevice : IDisposable
         IsDisposed = true;
         CurveTexture.Dispose();
         BandTexture.Dispose();
+        BandLutTexture.Dispose();
     }
 }

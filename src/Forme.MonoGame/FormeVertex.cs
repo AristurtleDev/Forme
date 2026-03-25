@@ -16,8 +16,8 @@ internal struct FormeVertex
     // TEXCOORD1: xyzw = normalized RGBA color (R/255, G/255, B/255, A/255)
     internal Vector4 Color;
 
-    // TEXCOORD2: bandScaleX, bandScaleY, bandOffsetX, bandOffsetY
-    internal Vector4 Bnd;
+    // TEXCOORD2: x=band LUT U, y=band LUT V, z=invJxx, w=invJyy
+    internal Vector4 Dilation;
 
     internal const int SizeInBytes = 4 * 4 * 4;
 

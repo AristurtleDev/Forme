@@ -48,6 +48,7 @@ public sealed class FormeRenderer : IDisposable
     private RasterizerState? _savedRasterizerState;
     private SamplerState? _savedSamplerState0;
     private SamplerState? _savedSamplerState1;
+    private SamplerState? _savedSamplerState2;
 
     private Matrix _transformMatrix;
     private bool _hasCustomTransform;
@@ -148,6 +149,7 @@ public sealed class FormeRenderer : IDisposable
         _savedRasterizerState = _graphicsDevice.RasterizerState;
         _savedSamplerState0 = _graphicsDevice.SamplerStates[0];
         _savedSamplerState1 = _graphicsDevice.SamplerStates[1];
+        _savedSamplerState2 = _graphicsDevice.SamplerStates[2];
 
         if (transformMatrix.HasValue)
         {
@@ -205,7 +207,7 @@ public sealed class FormeRenderer : IDisposable
 
             if (font.Glyphs.TryGetValue(rune.Value, out FormeGlyph glyph))
             {
-                _queue.Add(new QueuedDraw(font, glyph, new Vector2(cursorX, position.Y), sizePixels, color));
+                _queue.Add(new QueuedDraw(font, glyph, rune.Value, new Vector2(cursorX, position.Y), sizePixels, color));
                 cursorX += glyph.AdvanceWidth * scale;
             }
         }
@@ -254,7 +256,7 @@ public sealed class FormeRenderer : IDisposable
             }
 
             Vector2 glyphPos = new(position.X + placement.BaselineX, position.Y + placement.BaselineY);
-            _queue.Add(new QueuedDraw(font, glyph, glyphPos, sizePixels, color));
+            _queue.Add(new QueuedDraw(font, glyph, placement.CodePoint, glyphPos, sizePixels, color));
         }
     }
 
@@ -289,7 +291,7 @@ public sealed class FormeRenderer : IDisposable
 
         if (font.Glyphs.TryGetValue(codepoint, out FormeGlyph glyph))
         {
-            _queue.Add(new QueuedDraw(font, glyph, position, sizePixels, color));
+            _queue.Add(new QueuedDraw(font, glyph, codepoint, position, sizePixels, color));
         }
     }
 
@@ -318,6 +320,7 @@ public sealed class FormeRenderer : IDisposable
         _graphicsDevice.RasterizerState = RasterizerState.CullNone;
         _graphicsDevice.SamplerStates[0] = SamplerState.PointClamp;
         _graphicsDevice.SamplerStates[1] = SamplerState.PointClamp;
+        _graphicsDevice.SamplerStates[2] = SamplerState.PointClamp;
 
         FormeFontDevice? currentFont = null;
         _glyphCount = 0;
@@ -354,6 +357,7 @@ public sealed class FormeRenderer : IDisposable
         _graphicsDevice.RasterizerState = _savedRasterizerState!;
         _graphicsDevice.SamplerStates[0] = _savedSamplerState0!;
         _graphicsDevice.SamplerStates[1] = _savedSamplerState1!;
+        _graphicsDevice.SamplerStates[2] = _savedSamplerState2!;
     }
 
     private void FlushBatch(FormeFontDevice font)
@@ -379,6 +383,7 @@ public sealed class FormeRenderer : IDisposable
         _effect.Parameters["forme_matrix"].SetValue(matrix);
         _effect.Parameters["curveTexture"].SetValue(font.CurveTexture);
         _effect.Parameters["bandTexture"].SetValue(font.BandTexture);
+        _effect.Parameters["bandLUTTexture"].SetValue(font.BandLutTexture);
 
         // curveTexSize and bandTexSize are used by the OpenGL shader for UV-based texel
         // sampling but are not present in the DirectX 11 shader, which uses Load() instead.
@@ -433,11 +438,6 @@ public sealed class FormeRenderer : IDisposable
         float ex1 = g.BoundingBox.X2;
         float ey1 = g.BoundingBox.Y2;
 
-        float bandScaleX = 1.0f / Math.Max(1f, (float)g.BandInfo.DimX);
-        float bandScaleY = 1.0f / Math.Max(1f, (float)g.BandInfo.DimY);
-        float bandOffsetX = -(float)g.BoundingBox.X1 * bandScaleX;
-        float bandOffsetY = -(float)g.BoundingBox.Y1 * bandScaleY;
-
         // Pack band texture origin using the texture width as the row stride.
         // The shader unpacks this using the runtime uniform bandTexSize.x, avoiding
         // compile-time constant folding that the MGCB/MojoShader transpiler gets wrong.
@@ -456,7 +456,15 @@ public sealed class FormeRenderer : IDisposable
             draw.Color.B / 255f,
             draw.Color.A / 255f);
 
-        Vector4 bnd = new Vector4(bandScaleX, bandScaleY, bandOffsetX, bandOffsetY);
+        // Inverse Jacobian: maps a screen-space displacement to an em-space displacement.
+        float invJxx =  (ex1 - ex0) / (px1 - px0);
+        float invJyy =  (ey0 - ey1) / (py1 - py0);  // negative; font Y up, screen Y down
+
+        Vector2 lutUV = draw.Font.GlyphLutUVs.TryGetValue(draw.CodePoint, out Vector2 uv)
+            ? uv
+            : Vector2.Zero;
+
+        Vector4 dilation = new Vector4(lutUV.X, lutUV.Y, invJxx, invJyy);
 
         int baseVertex = _glyphCount * 4;
 
@@ -465,7 +473,7 @@ public sealed class FormeRenderer : IDisposable
             Pos = new Vector4(px0, py0, -InvSqrt2, -InvSqrt2),
             Tex = new Vector4(ex0, ey1, packedBandTexLoc, packedBandCount),
             Color = color,
-            Bnd = bnd
+            Dilation = dilation
         };
 
         _vertices[baseVertex + 1] = new FormeVertex
@@ -473,7 +481,7 @@ public sealed class FormeRenderer : IDisposable
             Pos = new Vector4(px1, py0, InvSqrt2, -InvSqrt2),
             Tex = new Vector4(ex1, ey1, packedBandTexLoc, packedBandCount),
             Color = color,
-            Bnd = bnd
+            Dilation = dilation
         };
 
         _vertices[baseVertex + 2] = new FormeVertex
@@ -481,7 +489,7 @@ public sealed class FormeRenderer : IDisposable
             Pos = new Vector4(px1, py1, InvSqrt2, InvSqrt2),
             Tex = new Vector4(ex1, ey0, packedBandTexLoc, packedBandCount),
             Color = color,
-            Bnd = bnd
+            Dilation = dilation
         };
 
         _vertices[baseVertex + 3] = new FormeVertex
@@ -489,7 +497,7 @@ public sealed class FormeRenderer : IDisposable
             Pos = new Vector4(px0, py1, -InvSqrt2, InvSqrt2),
             Tex = new Vector4(ex0, ey0, packedBandTexLoc, packedBandCount),
             Color = color,
-            Bnd = bnd
+            Dilation = dilation
         };
 
         int baseIndex = _glyphCount * 6;
@@ -534,14 +542,16 @@ public sealed class FormeRenderer : IDisposable
     {
         internal FormeFontDevice Font { get; }
         internal FormeGlyph Glyph { get; }
+        internal int CodePoint { get; }
         internal Vector2 Position { get; }
         internal float SizePixels { get; }
         internal Color Color { get; }
 
-        internal QueuedDraw(FormeFontDevice font, FormeGlyph glyph, Vector2 position, float sizePixels, Color color)
+        internal QueuedDraw(FormeFontDevice font, FormeGlyph glyph, int codePoint, Vector2 position, float sizePixels, Color color)
         {
             Font = font;
             Glyph = glyph;
+            CodePoint = codePoint;
             Position = position;
             SizePixels = sizePixels;
             Color = color;
