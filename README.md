@@ -166,9 +166,13 @@ SM3 does not support `for` loops with integer counters when integer instructions
 
 The reference vertex shader unpacks band texture coordinates from a 32-bit integer stored in `tex.z` via `asuint()` and bit shifts. Without integer casting, this is not possible in SM3. Forme instead stores the band texture X and Y coordinates as a single packed float (y * textureWidth + x) passed through `tex.z`, and unpacks them with `fmod` and `floor` in the pixel shader, where `bandTexSize` is available.
 
-### Dynamic dilation not implemented.
+### Dynamic dilation adapted for orthographic projection.
 
-The reference vertex shader applies sub-pixel outward dilation (Lengyel 2017, Section 4) to reduce aliasing at glyph edges. This requires perspective projection to compute the correct half-pixel displacement along the vertex normal using the inverse Jacobian. With an orthographic projection, the intermediate values in the dilation formula diverge and corrupt the glyph geometry. Since MonoGame 2D rendering uses orthographic projection, dilation is skipped. It is a cosmetic refinement and not required for correct coverage rendering.
+The reference vertex shader applies sub-pixel outward dilation (Lengyel 2017, Section 4) by pushing each vertex 0.5 screen pixels outward along its corner normal and adjusting the em-space sample coordinate by the same amount using the inverse Jacobian. The reference computes the inverse Jacobian from the perspective projection matrix, which does not apply to orthographic rendering.
+
+Forme computes the inverse Jacobian per glyph on the CPU from the ratio of the glyph's em-space bounding box dimensions to its screen-space pixel dimensions (`invJxx = (ex1 - ex0) / (px1 - px0)`, `invJyy = (ey0 - ey1) / (py1 - py0)`). These values are constant across all four vertices of a glyph quad, so they are packed into the vertex stream alongside the band LUT UV in TEXCOORD2.
+
+Because TEXCOORD2 was previously used to pass the per-glyph band transform (four floats) directly through the vertex stream, and SM3 provides only four vertex attribute slots, the band transform is instead stored in a per-font RGBA32F LUT texture (`FormeFontDevice.BandLutTexture`). The pixel shader fetches it using the LUT UV passed through TEXCOORD2, freeing two floats in that slot for the inverse Jacobian values.
 
 ### Near-linear epsilon widened.
 
