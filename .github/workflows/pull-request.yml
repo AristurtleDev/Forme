@@ -1,0 +1,30 @@
+################################################################################
+### Pull Request Validation
+### Runs unit tests on pull requests targeting the develop branch.
+################################################################################
+name: "Pull Request Validation"
+
+on:
+  pull_request:
+    branches:
+      - develop
+
+jobs:
+  test:
+    name: "Run Tests"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clone Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Test Forme
+        run: dotnet test tests/Forme.Tests/Forme.Tests.csproj --nologo --verbosity minimal --configuration Release
+
+      - name: Test Forme.Content.Pipeline
+        run: dotnet test tests/Forme.Content.Pipeline.Tests/Forme.Content.Pipeline.Tests.csproj --nologo --verbosity minimal --configuration Release
