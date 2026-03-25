@@ -4,7 +4,7 @@
 ### Once the build job finishes, the deploy job uploads the nupkg files to NuGet.
 ###
 ###     - Can be triggered manually with workflow_dispatch
-###     - Allows specifying a branch (defaults to main)
+###     - Allows specifying a branch (defaults to develop)
 ###     - Version numbers are determined by the project properties on the branch
 ################################################################################
 name: "Create Release"
