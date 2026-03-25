@@ -16,7 +16,7 @@
 //   POSITION0: pos.xy = object-space position, pos.zw = outward corner normal
 //   TEXCOORD0: tex.xy = em-space sample coords, tex.z = packed band tex location, tex.w = band count
 //   TEXCOORD1: color.xyzw = normalized RGBA (R/255, G/255, B/255, A/255)
-//   TEXCOORD2: bnd = (bandScaleX, bandScaleY, bandOffsetX, bandOffsetY)
+//   TEXCOORD2: dil = (lutU, lutV, invJxx, invJyy)
 //
 // This shader targets SM3 for OpenGL and SM4 for DirectX 11. No integer bitwise ops are used
 // so that the shader compiles cleanly at SM3 where they are unavailable.
@@ -54,6 +54,17 @@ sampler2D bandSampler = sampler_state
     AddressV  = Clamp;
 };
 
+texture2D bandLUTTexture;
+sampler2D bandLUTSampler = sampler_state
+{
+    Texture   = <bandLUTTexture>;
+    MinFilter = Point;
+    MagFilter = Point;
+    MipFilter = None;
+    AddressU  = Clamp;
+    AddressV  = Clamp;
+};
+
 float2 curveTexSize;   // (width, height) in texels
 float2 bandTexSize;    // (width, height) in texels
 
@@ -62,37 +73,27 @@ struct VSInput
     float4 pos   : POSITION0;  // xy = position, zw = outward corner normal
     float4 tex   : TEXCOORD0;  // xy = em-space coords, z = packed band tex location, w = band count
     float4 color : TEXCOORD1;  // normalized RGBA color
-    float4 bnd   : TEXCOORD2;  // bandScaleX, bandScaleY, bandOffsetX, bandOffsetY
+    float4 dil   : TEXCOORD2;  // x=lutU, y=lutV, z=invJxx, w=invJyy
 };
 
 struct VSOutput
 {
     float4 position : SV_POSITION;
-    float2 texcoord : TEXCOORD0;  // em-space sample coords
-    float4 banding  : TEXCOORD1;  // band transform
-    float4 glyphLoc : TEXCOORD2;  // packed band texture location and band count
-    float4 color    : TEXCOORD3;  // RGBA color
+    float2 texcoord : TEXCOORD0;  // em-space sample coords (dilated)
+    float4 glyphLoc : TEXCOORD1;  // xy=packed band tex loc + band count, zw=band LUT UV
+    float4 color    : TEXCOORD2;  // RGBA color
 };
 
 VSOutput VS_Main(VSInput input)
 {
     VSOutput output;
 
-    // NOTE:
-    //      Dynamic dilation (Lengyel 2017, Section 4) is not implemented.
-    //      The math assumes a perspective projection to compute a half-pixel
-    //      outward displacement along the vertex normal, but with an orthographic
-    //      projection the intermediate values diverge and corrupt glyph geometry.
-    //
-    //      Dilation is a cosmetic sub-pixel refinement and not required for
-    //      correct coverage rendering.
-    //
-    //      If you can get it working with orthographic projection, please open
-    //      a pull request.
-    output.position = mul(float4(input.pos.xy, 0, 1), forme_matrix);
-    output.texcoord = input.tex.xy;
-    output.glyphLoc = float4(input.tex.z, input.tex.w, 0.0, 0.0);
-    output.banding  = input.bnd;
+    float2 n            = input.pos.zw;
+    float2 screenOffset = n * 0.5;
+
+    output.position = mul(float4(input.pos.xy + screenOffset, 0, 1), forme_matrix);
+    output.texcoord = input.tex.xy + screenOffset * float2(input.dil.z, input.dil.w);
+    output.glyphLoc = float4(input.tex.z, input.tex.w, input.dil.x, input.dil.y);
     output.color    = input.color;
 
     return output;
@@ -263,7 +264,8 @@ float FormeRender(float2 renderCoord, float4 bandTransform, float4 glyphTexInfo)
 
 float4 PS_Main(VSOutput input) : COLOR0
 {
-    float  coverage = FormeRender(input.texcoord, input.banding, input.glyphLoc);
+    float4 bandTransform = tex2D(bandLUTSampler, input.glyphLoc.zw);
+    float  coverage      = FormeRender(input.texcoord, bandTransform, input.glyphLoc);
     return float4(input.color.rgb * coverage, coverage * input.color.a);
 }
 
