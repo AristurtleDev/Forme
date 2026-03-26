@@ -65,6 +65,18 @@ public sealed class FormeRenderer : IDisposable
     public bool IsDisposed { get; private set; }
 
     /// <summary>
+    /// Gets or sets the <see cref="Microsoft.Xna.Framework.Graphics.RasterizerState"/> applied
+    /// during the glyph flush in <see cref="End"/>.
+    /// </summary>
+    /// <remarks>
+    /// Defaults to <see cref="RasterizerState.CullNone"/> (no face culling, scissor test
+    /// disabled). Set this to a state with <c>ScissorTestEnable = true</c> when the caller
+    /// manages a scissor rect for clipping (e.g. a UI renderer with panel or window clip regions).
+    /// The value must not be <see langword="null"/>.
+    /// </remarks>
+    public RasterizerState RasterizerState { get; set; } = RasterizerState.CullNone;
+
+    /// <summary>
     /// Initializes a new <see cref="FormeRenderer"/> and loads the embedded Slug shader.
     /// </summary>
     /// <param name="graphicsDevice">The graphics device used for rendering.</param>
@@ -317,7 +329,7 @@ public sealed class FormeRenderer : IDisposable
 
         _graphicsDevice.BlendState = BlendState.AlphaBlend;
         _graphicsDevice.DepthStencilState = DepthStencilState.None;
-        _graphicsDevice.RasterizerState = RasterizerState.CullNone;
+        _graphicsDevice.RasterizerState = RasterizerState;
         _graphicsDevice.SamplerStates[0] = SamplerState.PointClamp;
         _graphicsDevice.SamplerStates[1] = SamplerState.PointClamp;
         _graphicsDevice.SamplerStates[2] = SamplerState.PointClamp;
