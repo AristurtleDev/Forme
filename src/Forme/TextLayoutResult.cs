@@ -54,4 +54,93 @@ public sealed class TextLayoutResult
         Runs = runs;
         Glyphs = glyphs;
     }
+
+    /// <summary>
+    /// Tries to find the line containing the given UTF-16 text index.
+    /// </summary>
+    /// <param name="textIndex">The zero-based UTF-16 index to look up.</param>
+    /// <param name="lineIndex">
+    /// When this method returns <see langword="true"/>, contains the matching line index within
+    /// <see cref="Lines"/>.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the index falls within a line's source-text range; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetLineIndexFromTextIndex(int textIndex, out int lineIndex)
+    {
+        for (int i = 0; i < Lines.Count; i++)
+        {
+            TextLayoutLine line = Lines[i];
+            if (ContainsTextIndex(line.TextStart, line.TextLength, textIndex))
+            {
+                lineIndex = i;
+                return true;
+            }
+        }
+
+        lineIndex = -1;
+        return false;
+    }
+
+    /// <summary>
+    /// Tries to find the run containing the given UTF-16 text index.
+    /// </summary>
+    /// <param name="textIndex">The zero-based UTF-16 index to look up.</param>
+    /// <param name="runIndex">
+    /// When this method returns <see langword="true"/>, contains the matching run index within
+    /// <see cref="Runs"/>.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the index falls within a run's source-text range; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetRunIndexFromTextIndex(int textIndex, out int runIndex)
+    {
+        for (int i = 0; i < Runs.Count; i++)
+        {
+            TextLayoutRun run = Runs[i];
+            if (ContainsTextIndex(run.TextStart, run.TextLength, textIndex))
+            {
+                runIndex = i;
+                return true;
+            }
+        }
+
+        runIndex = -1;
+        return false;
+    }
+
+    /// <summary>
+    /// Tries to find the glyph containing the given UTF-16 text index.
+    /// </summary>
+    /// <param name="textIndex">The zero-based UTF-16 index to look up.</param>
+    /// <param name="glyphIndex">
+    /// When this method returns <see langword="true"/>, contains the matching glyph index within
+    /// <see cref="Glyphs"/>.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the index falls within a glyph's source-text range; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetGlyphIndexFromTextIndex(int textIndex, out int glyphIndex)
+    {
+        for (int i = 0; i < Glyphs.Count; i++)
+        {
+            GlyphPlacement glyph = Glyphs[i];
+            if (ContainsTextIndex(glyph.Index, glyph.TextLength, textIndex))
+            {
+                glyphIndex = i;
+                return true;
+            }
+        }
+
+        glyphIndex = -1;
+        return false;
+    }
+
+    private static bool ContainsTextIndex(int start, int length, int textIndex)
+    {
+        return length > 0 && textIndex >= start && textIndex < start + length;
+    }
 }
