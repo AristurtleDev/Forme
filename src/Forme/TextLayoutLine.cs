@@ -10,6 +10,20 @@ namespace Forme;
 public readonly struct TextLayoutLine
 {
     /// <summary>
+    /// Gets the zero-based UTF-16 start index of this line within the source text.
+    /// </summary>
+    public int TextStart { get; }
+
+    /// <summary>
+    /// Gets the UTF-16 length of the source text represented by this line.
+    /// </summary>
+    /// <remarks>
+    /// Synthetic glyphs introduced by layout policy, such as an ellipsis string, are not counted
+    /// in this source range.
+    /// </remarks>
+    public int TextLength { get; }
+
+    /// <summary>
     /// Gets the baseline Y position of this line, relative to the layout origin.
     /// </summary>
     public float BaselineY { get; }
@@ -60,6 +74,8 @@ public readonly struct TextLayoutLine
     /// Initializes a new <see cref="TextLayoutLine"/> with the given values.
     /// </summary>
     public TextLayoutLine(
+        int textStart,
+        int textLength,
         float baselineY,
         float lineHeight,
         float ascent,
@@ -70,6 +86,8 @@ public readonly struct TextLayoutLine
         int glyphStart,
         int glyphCount)
     {
+        TextStart = textStart;
+        TextLength = textLength;
         BaselineY = baselineY;
         LineHeight = lineHeight;
         Ascent = ascent;

@@ -117,7 +117,7 @@ TextLayoutResult layout = font.LayoutText("Hello, world!", sizePixels: 32, optio
 ```
 
 Each `TextLayoutLine` in `layout.Lines` includes baseline Y, line height, ascent, descent,
-logical bounds, visual bounds, and the glyph range for that line.
+logical bounds, visual bounds, the source-text range, and the glyph range for that line.
 
 `layout.Runs` exposes source-text and glyph-range mapping for style runs. The current single-font
 layout path produces one run spanning the whole request, and that run reports the `FormeFont`

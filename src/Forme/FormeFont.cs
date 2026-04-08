@@ -343,7 +343,7 @@ public sealed class FormeFont
         float scale = sizePixels / Math.Max(1, Metrics.UnitsPerEm);
         float lineHeight = scaledMetrics.LineHeight + options.LineSpacing;
 
-        List<List<CodePointEntry>> codePointLines = BuildLines(text, scale, in options);
+        List<LineLayoutInfo> codePointLines = BuildLines(text, scale, in options);
         if (codePointLines.Count == 0)
         {
             return TextLayoutResult.Empty;
@@ -360,9 +360,9 @@ public sealed class FormeFont
         float visualMaxY = 0f;
         float cursorY = 0f;
 
-        foreach (List<CodePointEntry> codePointLine in codePointLines)
+        foreach (LineLayoutInfo codePointLine in codePointLines)
         {
-            float lineWidth = MeasureLineWidth(codePointLine, scale, options.CharacterSpacing);
+            float lineWidth = MeasureLineWidth(codePointLine.Entries, scale, options.CharacterSpacing);
             if (lineWidth > maxLineWidth)
             {
                 maxLineWidth = lineWidth;
@@ -385,7 +385,7 @@ public sealed class FormeFont
             float lineMaxX = 0f;
             float lineMaxY = 0f;
 
-            foreach (CodePointEntry entry in codePointLine)
+            foreach (CodePointEntry entry in codePointLine.Entries)
             {
                 if (Glyphs.TryGetValue(entry.CodePoint, out FormeGlyph glyph))
                 {
@@ -473,6 +473,8 @@ public sealed class FormeFont
                 : FormeTextBounds.Empty;
 
             lines.Add(new TextLayoutLine(
+                codePointLine.TextStart,
+                codePointLine.TextLength,
                 cursorY,
                 lineHeight,
                 scaledMetrics.Ascent,
@@ -533,9 +535,9 @@ public sealed class FormeFont
         return LayoutText(text, sizePixels, in options).Glyphs;
     }
 
-    private List<List<CodePointEntry>> BuildLines(ReadOnlySpan<char> text, float scale, in TextLayoutOptions options)
+    private List<LineLayoutInfo> BuildLines(ReadOnlySpan<char> text, float scale, in TextLayoutOptions options)
     {
-        List<List<CodePointEntry>> result = new();
+        List<LineLayoutInfo> result = new();
 
         if (options.MaxWidth.HasValue && options.EllipsisMode != EllipsisMode.None)
         {
@@ -556,7 +558,7 @@ public sealed class FormeFont
             }
             else
             {
-                result.Add(DecodeSegment(segment, lineStart));
+                result.Add(CreateLineLayoutInfo(DecodeSegment(segment, lineStart), lineStart, segment.Length));
             }
 
             if (newlineAt < 0)
@@ -575,14 +577,14 @@ public sealed class FormeFont
         int segmentOffset,
         float scale,
         in TextLayoutOptions options,
-        List<List<CodePointEntry>> output)
+        List<LineLayoutInfo> output)
     {
         float maxWidth = options.MaxWidth!.Value;
 
         List<CodePointEntry> chars = DecodeSegment(segment, segmentOffset);
         if (chars.Count == 0)
         {
-            output.Add(new List<CodePointEntry>());
+            output.Add(new LineLayoutInfo(new List<CodePointEntry>(), segmentOffset, 0));
             return;
         }
 
@@ -647,7 +649,16 @@ public sealed class FormeFont
             {
                 line.Add(chars[j]);
             }
-            output.Add(line);
+
+            int textStart = line.Count > 0 ? line[0].Index : segmentOffset;
+            int textLength = 0;
+            if (line.Count > 0)
+            {
+                CodePointEntry lastEntry = line[line.Count - 1];
+                textLength = (lastEntry.Index + lastEntry.Utf16Length) - textStart;
+            }
+
+            output.Add(new LineLayoutInfo(line, textStart, textLength));
 
             lineStart = nextStart;
         }
@@ -657,7 +668,7 @@ public sealed class FormeFont
         ReadOnlySpan<char> text,
         float scale,
         in TextLayoutOptions options,
-        List<List<CodePointEntry>> output)
+        List<LineLayoutInfo> output)
     {
         float maxWidth = options.MaxWidth!.Value;
         string ellipsisStr = options.EllipsisString ?? "...";
@@ -696,7 +707,7 @@ public sealed class FormeFont
             }
             prevWasSpace = (cp == ' ');
 
-            line.Add(new CodePointEntry(i, cp));
+            line.Add(new CodePointEntry(i, cp, consumed));
             cursorWidth += advance;
             if (Glyphs.ContainsKey(cp))
             {
@@ -745,7 +756,9 @@ public sealed class FormeFont
             }
         }
 
-        output.Add(line);
+        int textStart = line.Count > 0 ? line[0].Index : 0;
+        int textLength = truncationIndex > textStart ? truncationIndex - textStart : 0;
+        output.Add(new LineLayoutInfo(line, textStart, textLength));
     }
 
     private float MeasureLineWidth(List<CodePointEntry> line, float scale, float charSpacing)
@@ -773,10 +786,23 @@ public sealed class FormeFont
         while (i < segment.Length)
         {
             Rune.DecodeFromUtf16(segment[i..], out Rune rune, out int consumed);
-            list.Add(new CodePointEntry(offset + i, rune.Value));
+            list.Add(new CodePointEntry(offset + i, rune.Value, consumed));
             i += consumed;
         }
         return list;
+    }
+
+    private static LineLayoutInfo CreateLineLayoutInfo(List<CodePointEntry> entries, int textStart, int textLength)
+    {
+        if (entries.Count == 0)
+        {
+            return new LineLayoutInfo(entries, textStart, textLength);
+        }
+
+        CodePointEntry lastEntry = entries[entries.Count - 1];
+        int actualStart = entries[0].Index;
+        int actualLength = (lastEntry.Index + lastEntry.Utf16Length) - actualStart;
+        return new LineLayoutInfo(entries, actualStart, actualLength);
     }
 
     private static FormeTextBounds ComputeVisualBounds(in FormeGlyph glyph, float baselineX, float baselineY, float scale)
@@ -825,11 +851,27 @@ public sealed class FormeFont
     {
         internal int Index { get; }
         internal int CodePoint { get; }
+        internal int Utf16Length { get; }
 
-        internal CodePointEntry(int index, int codePoint)
+        internal CodePointEntry(int index, int codePoint, int utf16Length)
         {
             Index = index;
             CodePoint = codePoint;
+            Utf16Length = utf16Length;
+        }
+    }
+
+    private readonly struct LineLayoutInfo
+    {
+        internal List<CodePointEntry> Entries { get; }
+        internal int TextStart { get; }
+        internal int TextLength { get; }
+
+        internal LineLayoutInfo(List<CodePointEntry> entries, int textStart, int textLength)
+        {
+            Entries = entries;
+            TextStart = textStart;
+            TextLength = textLength;
         }
     }
 

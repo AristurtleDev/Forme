@@ -321,6 +321,8 @@ public class FontProcessorTests
             Assert.True(line.GlyphStart >= totalGlyphs);
             Assert.True(line.GlyphCount >= 0);
             Assert.True(line.Width >= 0f);
+            Assert.True(line.TextStart >= 0);
+            Assert.True(line.TextLength >= 0);
             Assert.Equal(result.LogicalBounds.Y + i * line.LineHeight, line.LogicalBounds.Y);
             totalGlyphs += line.GlyphCount;
         }
@@ -347,6 +349,27 @@ public class FontProcessorTests
             Assert.Equal(line.BaselineY - line.Ascent, line.LogicalBounds.Y);
             Assert.Equal(line.BaselineY - line.Descent, line.LogicalBounds.Y2);
         }
+    }
+
+    [Fact]
+    public void LayoutText_LinesExposeSourceTextRanges()
+    {
+        byte[] ttf = LoadTestFont();
+        FormeFont font = FormeFont.FromTtf(ttf, CharacterSet.Ascii);
+        string text = "Alpha\n\nBeta";
+
+        TextLayoutResult result = font.LayoutText(text.AsSpan(), 28f);
+
+        Assert.Equal(3, result.Lines.Count);
+
+        Assert.Equal(0, result.Lines[0].TextStart);
+        Assert.Equal(5, result.Lines[0].TextLength);
+
+        Assert.Equal(6, result.Lines[1].TextStart);
+        Assert.Equal(0, result.Lines[1].TextLength);
+
+        Assert.Equal(7, result.Lines[2].TextStart);
+        Assert.Equal(4, result.Lines[2].TextLength);
     }
 
     [Fact]
