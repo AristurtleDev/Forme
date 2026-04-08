@@ -71,6 +71,16 @@ public readonly struct TextLayoutLine
     public int GlyphCount { get; }
 
     /// <summary>
+    /// Gets the index of the first run touching this line within <see cref="TextLayoutResult.Runs"/>.
+    /// </summary>
+    public int RunStart { get; }
+
+    /// <summary>
+    /// Gets the number of runs touching this line.
+    /// </summary>
+    public int RunCount { get; }
+
+    /// <summary>
     /// Initializes a new <see cref="TextLayoutLine"/> with the given values.
     /// </summary>
     public TextLayoutLine(
@@ -84,7 +94,9 @@ public readonly struct TextLayoutLine
         FormeTextBounds logicalBounds,
         FormeTextBounds visualBounds,
         int glyphStart,
-        int glyphCount)
+        int glyphCount,
+        int runStart,
+        int runCount)
     {
         TextStart = textStart;
         TextLength = textLength;
@@ -97,5 +109,7 @@ public readonly struct TextLayoutLine
         VisualBounds = visualBounds;
         GlyphStart = glyphStart;
         GlyphCount = glyphCount;
+        RunStart = runStart;
+        RunCount = runCount;
     }
 }

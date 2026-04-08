@@ -45,9 +45,27 @@ public readonly struct TextLayoutRun
     public int GlyphCount { get; }
 
     /// <summary>
+    /// Gets the index of the first line touched by this run within <see cref="TextLayoutResult.Lines"/>.
+    /// </summary>
+    public int LineStart { get; }
+
+    /// <summary>
+    /// Gets the number of lines touched by this run.
+    /// </summary>
+    public int LineCount { get; }
+
+    /// <summary>
     /// Initializes a new <see cref="TextLayoutRun"/> with the given values.
     /// </summary>
-    public TextLayoutRun(FormeFont font, float sizePixels, int textStart, int textLength, int glyphStart, int glyphCount)
+    public TextLayoutRun(
+        FormeFont font,
+        float sizePixels,
+        int textStart,
+        int textLength,
+        int glyphStart,
+        int glyphCount,
+        int lineStart,
+        int lineCount)
     {
         Font = font;
         SizePixels = sizePixels;
@@ -55,5 +73,7 @@ public readonly struct TextLayoutRun
         TextLength = textLength;
         GlyphStart = glyphStart;
         GlyphCount = glyphCount;
+        LineStart = lineStart;
+        LineCount = lineCount;
     }
 }
