@@ -175,6 +175,23 @@ public sealed class FormeFont
     }
 
     /// <summary>
+    /// Returns the vertical font metrics in pixels for the given size.
+    /// </summary>
+    /// <param name="sizePixels">The em-square height in pixels.</param>
+    /// <returns>
+    /// A <see cref="ScaledFontMetrics"/> value whose ascent, descent, line gap, and derived line
+    /// height all use the same baseline-relative coordinate system as Forme's layout API.
+    /// </returns>
+    public ScaledFontMetrics GetScaledMetrics(float sizePixels)
+    {
+        float scale = sizePixels / Math.Max(1, Metrics.UnitsPerEm);
+        return new ScaledFontMetrics(
+            Metrics.Ascent * scale,
+            Metrics.Descent * scale,
+            Metrics.LineGap * scale);
+    }
+
+    /// <summary>
     /// Returns the natural line height in pixels at the given size, based solely on font metrics.
     /// </summary>
     /// <param name="sizePixels">The em-square height in pixels.</param>
@@ -183,7 +200,7 @@ public sealed class FormeFont
     /// <c>(Ascent - Descent + LineGap) * (sizePixels / UnitsPerEm)</c>.
     /// </returns>
     public float GetLineHeight(float sizePixels)
-        => (Metrics.Ascent - Metrics.Descent + Metrics.LineGap) * (sizePixels / Math.Max(1, Metrics.UnitsPerEm));
+        => GetScaledMetrics(sizePixels).LineHeight;
 
     /// <summary>
     /// Gets the horizontal advance adjustment for a specific neighboring glyph pair.
@@ -209,9 +226,10 @@ public sealed class FormeFont
     /// <param name="text">The text to measure.</param>
     /// <param name="sizePixels">The em-square height in pixels.</param>
     /// <returns>
-    /// Logical bounds in pixels relative to a draw origin at (0, 0). X is always 0 for
-    /// left-aligned text, Y is derived from font ascent, and X2 represents the line layout
-    /// width rather than the visual overhang of specific glyph outlines.
+    /// Logical bounds in pixels relative to a draw origin at (0, 0). This is a compatibility alias
+    /// for <see cref="MeasureLogicalBounds(ReadOnlySpan{char}, float)"/>. X is always 0 for
+    /// left-aligned text, Y is derived from font ascent, and X2 represents the line layout width
+    /// rather than the visual overhang of specific glyph outlines.
     /// </returns>
     public FormeTextBounds MeasureString(ReadOnlySpan<char> text, float sizePixels)
     {
@@ -255,9 +273,10 @@ public sealed class FormeFont
     /// <param name="sizePixels">The em-square height in pixels.</param>
     /// <param name="options">Layout options controlling wrapping, spacing, and ellipsis.</param>
     /// <returns>
-    /// Logical bounds in pixels relative to a draw origin at (0, 0). Width reflects the widest
-    /// line layout width after pair positioning, spacing, wrapping, alignment, and ellipsis policy have
-    /// been applied.
+    /// Logical bounds in pixels relative to a draw origin at (0, 0). This is a compatibility alias
+    /// for <see cref="MeasureLogicalBounds(ReadOnlySpan{char}, float, in TextLayoutOptions)"/>.
+    /// Width reflects the widest line layout width after pair positioning, spacing, wrapping,
+    /// alignment, and ellipsis policy have been applied.
     /// </returns>
     public FormeTextBounds MeasureLogicalBounds(ReadOnlySpan<char> text, float sizePixels, in TextLayoutOptions options)
     {
@@ -266,8 +285,9 @@ public sealed class FormeFont
             return FormeTextBounds.Empty;
         }
 
+        ScaledFontMetrics scaledMetrics = GetScaledMetrics(sizePixels);
         float scale = sizePixels / Math.Max(1, Metrics.UnitsPerEm);
-        float lineHeight = GetLineHeight(sizePixels) + options.LineSpacing;
+        float lineHeight = scaledMetrics.LineHeight + options.LineSpacing;
 
         List<List<CodePointEntry>> lines = BuildLines(text, scale, in options);
 
@@ -288,9 +308,9 @@ public sealed class FormeFont
 
         return new FormeTextBounds(
             x: 0f,
-            y: -(Metrics.Ascent * scale),
+            y: -scaledMetrics.BaselineToTop,
             x2: maxLineWidth,
-            y2: (lines.Count - 1) * lineHeight + (-Metrics.Descent * scale));
+            y2: (lines.Count - 1) * lineHeight + scaledMetrics.BaselineToBottom);
     }
 
     /// <summary>
@@ -405,8 +425,9 @@ public sealed class FormeFont
     /// </returns>
     public IReadOnlyList<GlyphPlacement> GetGlyphs(ReadOnlySpan<char> text, float sizePixels, in TextLayoutOptions options)
     {
+        ScaledFontMetrics scaledMetrics = GetScaledMetrics(sizePixels);
         float scale = sizePixels / Math.Max(1, Metrics.UnitsPerEm);
-        float lineHeight = GetLineHeight(sizePixels) + options.LineSpacing;
+        float lineHeight = scaledMetrics.LineHeight + options.LineSpacing;
 
         List<GlyphPlacement> placements = new();
         BuildPlacements(text, scale, lineHeight, in options, placements);

@@ -94,10 +94,11 @@ renderer.End();
 
 ### Text Layout
 
-Measure text before drawing:
+Measure logical layout bounds before drawing:
 
 ```csharp
-FormeTextBounds bounds = font.MeasureString("Hello, world!", sizePixels: 32);
+FormeTextBounds logicalBounds = font.MeasureLogicalBounds("Hello, world!", sizePixels: 32);
+FormeTextBounds visualBounds = font.MeasureVisualBounds("Hello, world!", sizePixels: 32);
 ```
 
 Use `TextLayoutOptions` for word wrapping, alignment, and ellipsis:
@@ -110,8 +111,17 @@ TextLayoutOptions options = new TextLayoutOptions
     EllipsisMode = EllipsisMode.Word
 };
 
-FormeTextBounds bounds = font.MeasureString("Hello, world!", sizePixels: 32, options);
+FormeTextBounds bounds = font.MeasureLogicalBounds("Hello, world!", sizePixels: 32, options);
 IReadOnlyList<GlyphPlacement> glyphs = font.GetGlyphs("Hello, world!", sizePixels: 32, options);
+```
+
+Query baseline-relative font metrics in pixel space:
+
+```csharp
+ScaledFontMetrics metrics = font.GetScaledMetrics(sizePixels: 32);
+float lineHeight = metrics.LineHeight;
+float baselineToTop = metrics.BaselineToTop;
+float baselineToBottom = metrics.BaselineToBottom;
 ```
 
 ### SpriteFont (CPU Rasterization)

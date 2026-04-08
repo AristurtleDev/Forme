@@ -148,6 +148,24 @@ public class FontProcessorTests
     }
 
     [Fact]
+    public void GetScaledMetrics_ScalesRawFontMetrics()
+    {
+        byte[] ttf = LoadTestFont();
+        FormeFont font = FormeFont.FromTtf(ttf, CharacterSet.Ascii);
+        float sizePixels = 32f;
+        float scale = sizePixels / font.Metrics.UnitsPerEm;
+
+        ScaledFontMetrics metrics = font.GetScaledMetrics(sizePixels);
+
+        Assert.Equal(font.Metrics.Ascent * scale, metrics.Ascent);
+        Assert.Equal(font.Metrics.Descent * scale, metrics.Descent);
+        Assert.Equal(font.Metrics.LineGap * scale, metrics.LineGap);
+        Assert.Equal(font.GetLineHeight(sizePixels), metrics.LineHeight);
+        Assert.Equal(metrics.Ascent, metrics.BaselineToTop);
+        Assert.Equal(-metrics.Descent, metrics.BaselineToBottom);
+    }
+
+    [Fact]
     public void FromTtf_ThrowsOnNullTtfData()
     {
         Assert.Throws<ArgumentNullException>(() => FormeFont.FromTtf(null!, CharacterSet.Ascii));
@@ -224,6 +242,44 @@ public class FontProcessorTests
         Assert.Equal(minY, visual.Y);
         Assert.Equal(maxX, visual.X2);
         Assert.Equal(maxY, visual.Y2);
+    }
+
+    [Fact]
+    public void MeasureString_MatchesMeasureLogicalBounds()
+    {
+        byte[] ttf = LoadTestFont();
+        FormeFont font = FormeFont.FromTtf(ttf, CharacterSet.Ascii);
+        TextLayoutOptions options = new TextLayoutOptions
+        {
+            MaxWidth = 120f,
+            Alignment = TextHorizontalAlignment.Center
+        };
+
+        FormeTextBounds aliasBounds = font.MeasureString("Hello, world!".AsSpan(), 32f, in options);
+        FormeTextBounds logicalBounds = font.MeasureLogicalBounds("Hello, world!".AsSpan(), 32f, in options);
+
+        Assert.Equal(logicalBounds.X, aliasBounds.X);
+        Assert.Equal(logicalBounds.Y, aliasBounds.Y);
+        Assert.Equal(logicalBounds.X2, aliasBounds.X2);
+        Assert.Equal(logicalBounds.Y2, aliasBounds.Y2);
+    }
+
+    [Fact]
+    public void MeasureLogicalBounds_UsesScaledFontMetricsForTopAndBottom()
+    {
+        byte[] ttf = LoadTestFont();
+        FormeFont font = FormeFont.FromTtf(ttf, CharacterSet.FromString("A"));
+        float sizePixels = 32f;
+        ScaledFontMetrics metrics = font.GetScaledMetrics(sizePixels);
+        TextLayoutOptions options = new TextLayoutOptions
+        {
+            LineSpacing = 6f
+        };
+
+        FormeTextBounds bounds = font.MeasureLogicalBounds("A\nA".AsSpan(), sizePixels, in options);
+
+        Assert.Equal(-metrics.BaselineToTop, bounds.Y);
+        Assert.Equal(metrics.LineHeight + options.LineSpacing + metrics.BaselineToBottom, bounds.Y2);
     }
 
     [Fact]
