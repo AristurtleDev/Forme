@@ -362,6 +362,7 @@ public sealed class FormeFont
 
         foreach (LineLayoutInfo codePointLine in codePointLines)
         {
+            int lineIndex = lines.Count;
             float lineWidth = MeasureLineWidth(codePointLine.Entries, scale, options.CharacterSpacing);
             if (lineWidth > maxLineWidth)
             {
@@ -396,7 +397,7 @@ public sealed class FormeFont
 
                     float advance = glyph.AdvanceWidth * scale + options.CharacterSpacing;
                     FormeTextBounds visualBounds = ComputeVisualBounds(in glyph, cursorX, cursorY, scale);
-                    placements.Add(new GlyphPlacement(entry.Index, entry.Utf16Length, entry.CodePoint, cursorX, cursorY, visualBounds, advance));
+                    placements.Add(new GlyphPlacement(entry.Index, entry.Utf16Length, entry.CodePoint, lineIndex, 0, cursorX, cursorY, visualBounds, advance));
 
                     if (visualBounds.Width > 0f && visualBounds.Height > 0f)
                     {

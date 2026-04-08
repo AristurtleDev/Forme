@@ -32,6 +32,16 @@ public readonly struct GlyphPlacement
     public int CodePoint { get; }
 
     /// <summary>
+    /// Gets the index of the line that owns this glyph within <see cref="TextLayoutResult.Lines"/>.
+    /// </summary>
+    public int LineIndex { get; }
+
+    /// <summary>
+    /// Gets the index of the run that owns this glyph within <see cref="TextLayoutResult.Runs"/>.
+    /// </summary>
+    public int RunIndex { get; }
+
+    /// <summary>
     /// Gets the baseline X position of this glyph in pixels, relative to the draw origin.
     /// </summary>
     public float BaselineX { get; }
@@ -66,6 +76,8 @@ public readonly struct GlyphPlacement
         int index,
         int textLength,
         int codePoint,
+        int lineIndex,
+        int runIndex,
         float baselineX,
         float baselineY,
         FormeTextBounds visualBounds,
@@ -74,6 +86,8 @@ public readonly struct GlyphPlacement
         Index = index;
         TextLength = textLength;
         CodePoint = codePoint;
+        LineIndex = lineIndex;
+        RunIndex = runIndex;
         BaselineX = baselineX;
         BaselineY = baselineY;
         VisualBounds = visualBounds;

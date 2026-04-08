@@ -124,6 +124,7 @@ layout path produces one run spanning the whole request, and that run reports th
 instance, `SizePixels`, logical bounds, visual bounds, and touched line range used for layout.
 
 Each `GlyphPlacement` also reports its UTF-16 source index and source-text length.
+It also reports the owning line and run index within the layout result.
 
 Query baseline-relative font metrics in pixel space:
 

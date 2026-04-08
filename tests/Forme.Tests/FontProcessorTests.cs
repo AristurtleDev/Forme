@@ -415,6 +415,23 @@ public class FontProcessorTests
     }
 
     [Fact]
+    public void LayoutText_GlyphPlacementsExposeOwningLineAndRun()
+    {
+        byte[] ttf = LoadTestFont();
+        FormeFont font = FormeFont.FromTtf(ttf, CharacterSet.Ascii);
+
+        TextLayoutResult result = font.LayoutText("AB\nCD".AsSpan(), 28f);
+
+        Assert.Equal(4, result.Glyphs.Count);
+        Assert.Equal(0, result.Glyphs[0].LineIndex);
+        Assert.Equal(0, result.Glyphs[1].LineIndex);
+        Assert.Equal(1, result.Glyphs[2].LineIndex);
+        Assert.Equal(1, result.Glyphs[3].LineIndex);
+        Assert.Equal(0, result.Glyphs[0].RunIndex);
+        Assert.Equal(0, result.Glyphs[3].RunIndex);
+    }
+
+    [Fact]
     public void LayoutText_RightAlignedLine_ReportsShiftedLogicalBounds()
     {
         byte[] ttf = LoadTestFont();
