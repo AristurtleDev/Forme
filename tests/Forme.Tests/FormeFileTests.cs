@@ -8,10 +8,9 @@ namespace Forme.Tests;
 
 public class FormeFileTests
 {
-    private static byte[] LoadTestFont()
+    private static byte[] LoadEmbeddedFont(string resourceName)
     {
         Assembly assembly = typeof(FormeFileTests).Assembly;
-        string resourceName = "Forme.Tests.TestData.Inter-Regular.ttf";
 
         using Stream stream = assembly.GetManifestResourceStream(resourceName)
             ?? throw new InvalidOperationException($"Embedded resource '{resourceName}' not found.");
@@ -21,10 +20,26 @@ public class FormeFileTests
         return ms.ToArray();
     }
 
+    private static byte[] LoadTestFont()
+    {
+        return LoadEmbeddedFont("Forme.Tests.TestData.Inter-Regular.ttf");
+    }
+
+    private static byte[] LoadUbuntuFont()
+    {
+        return LoadEmbeddedFont("Forme.Tests.TestData.Ubuntu-Light.ttf");
+    }
+
     private static FormeFont BuildTestFont()
     {
         byte[] ttf = LoadTestFont();
         return FormeFont.FromTtf(ttf, CharacterSet.Range(65, 90));
+    }
+
+    private static FormeFont BuildPairAdjustingFont()
+    {
+        byte[] ttf = LoadUbuntuFont();
+        return FormeFont.FromTtf(ttf, CharacterSet.FromString("AV"));
     }
 
     [Fact]
@@ -227,5 +242,39 @@ public class FormeFileTests
                 File.Delete(tempPath);
             }
         }
+    }
+
+    [Fact]
+    public void RoundTrip_PreservesPairAdjustments()
+    {
+        FormeFont original = BuildPairAdjustingFont();
+
+        using MemoryStream ms = new MemoryStream();
+        original.Save(ms);
+        ms.Position = 0;
+
+        FormeFont loaded = FormeFont.FromStream(ms);
+
+        Assert.True(original.TryGetPairAdvanceAdjustment('A', 'V', out int originalAdjustment));
+        Assert.True(loaded.TryGetPairAdvanceAdjustment('A', 'V', out int adjustment));
+        Assert.Equal(original.PairAdjustments.Count, loaded.PairAdjustments.Count);
+        Assert.Equal(originalAdjustment, adjustment);
+    }
+
+    [Fact]
+    public void RoundTrip_PreservesPairAdjustedLayout()
+    {
+        FormeFont original = BuildPairAdjustingFont();
+
+        using MemoryStream ms = new MemoryStream();
+        original.Save(ms);
+        ms.Position = 0;
+
+        FormeFont loaded = FormeFont.FromStream(ms);
+
+        FormeTextBounds originalBounds = original.MeasureLogicalBounds("AV".AsSpan(), 32f);
+        FormeTextBounds loadedBounds = loaded.MeasureLogicalBounds("AV".AsSpan(), 32f);
+
+        Assert.Equal(originalBounds.Width, loadedBounds.Width);
     }
 }

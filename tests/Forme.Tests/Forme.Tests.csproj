@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="TestData\Inter-Regular.ttf" />
+    <EmbeddedResource Include="TestData\Ubuntu-Light.ttf" />
   </ItemGroup>
 
   <ItemGroup>

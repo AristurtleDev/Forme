@@ -23,6 +23,12 @@ public sealed class FormeFontContent
     public List<FormeGlyph> Glyphs { get; set; } = [];
 
     /// <summary>
+    /// Gets or sets the sparse pair-advance adjustments keyed by packed previous/current
+    /// Unicode code point pairs.
+    /// </summary>
+    public Dictionary<ulong, int> PairAdjustments { get; set; } = [];
+
+    /// <summary>
     /// Gets or sets the raw RGBA32F texel data for the curve texture, stored as
     /// four floats per texel in row-major order.
     /// </summary>

@@ -9,10 +9,9 @@ namespace Forme.Tests;
 
 public class FontProcessorTests
 {
-    private static byte[] LoadTestFont()
+    private static byte[] LoadEmbeddedFont(string resourceName)
     {
         Assembly assembly = typeof(FontProcessorTests).Assembly;
-        string resourceName = "Forme.Tests.TestData.Inter-Regular.ttf";
 
         using Stream stream = assembly.GetManifestResourceStream(resourceName)
             ?? throw new InvalidOperationException($"Embedded resource '{resourceName}' not found.");
@@ -20,6 +19,16 @@ public class FontProcessorTests
         using MemoryStream ms = new MemoryStream();
         stream.CopyTo(ms);
         return ms.ToArray();
+    }
+
+    private static byte[] LoadTestFont()
+    {
+        return LoadEmbeddedFont("Forme.Tests.TestData.Inter-Regular.ttf");
+    }
+
+    private static byte[] LoadUbuntuFont()
+    {
+        return LoadEmbeddedFont("Forme.Tests.TestData.Ubuntu-Light.ttf");
     }
 
     [Fact]
@@ -215,5 +224,40 @@ public class FontProcessorTests
         Assert.Equal(minY, visual.Y);
         Assert.Equal(maxX, visual.X2);
         Assert.Equal(maxY, visual.Y2);
+    }
+
+    [Fact]
+    public void FromTtf_UbuntuFont_ExtractsPairAdjustments()
+    {
+        byte[] ttf = LoadUbuntuFont();
+        FormeFont font = FormeFont.FromTtf(ttf, CharacterSet.FromString("AV"));
+
+        Assert.True(font.TryGetPairAdvanceAdjustment('A', 'V', out int adjustment));
+        Assert.True(adjustment < 0);
+    }
+
+    [Fact]
+    public void MeasureLogicalBounds_AppliesPairAdjustments()
+    {
+        byte[] ttf = LoadUbuntuFont();
+        FormeFont font = FormeFont.FromTtf(ttf, CharacterSet.FromString("AV"));
+
+        FormeTextBounds pairBounds = font.MeasureLogicalBounds("AV".AsSpan(), 32f);
+        FormeTextBounds separateBoundsA = font.MeasureLogicalBounds("A".AsSpan(), 32f);
+        FormeTextBounds separateBoundsV = font.MeasureLogicalBounds("V".AsSpan(), 32f);
+
+        Assert.True(pairBounds.Width < separateBoundsA.Width + separateBoundsV.Width);
+    }
+
+    [Fact]
+    public void GetGlyphs_AppliesPairAdjustmentsToPlacement()
+    {
+        byte[] ttf = LoadUbuntuFont();
+        FormeFont font = FormeFont.FromTtf(ttf, CharacterSet.FromString("AV"));
+
+        IReadOnlyList<GlyphPlacement> placements = font.GetGlyphs("AV".AsSpan(), 32f);
+
+        Assert.Equal(2, placements.Count);
+        Assert.True(placements[1].BaselineX < placements[0].AdvanceWidth);
     }
 }

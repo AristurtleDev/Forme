@@ -63,6 +63,7 @@ public sealed class FormeFontProcessor : ContentProcessor<byte[], FormeFontConte
         FormeFontContent content = new FormeFontContent();
         content.Metrics = font.Metrics;
         content.Glyphs = new List<FormeGlyph>(font.Glyphs.Values);
+        content.PairAdjustments = new Dictionary<ulong, int>(font.PairAdjustments);
         content.CurveTextureData = font.CurveTexture.Data.ToArray();
         content.CurveTextureWidth = font.CurveTexture.Width;
         content.CurveTextureHeight = font.CurveTexture.Height;

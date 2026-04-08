@@ -10,13 +10,23 @@ namespace Forme.Content.Pipeline.Tests;
 
 public sealed class FormeFontProcessorTests
 {
-    private static byte[] LoadEmbeddedTtf()
+    private static byte[] LoadEmbeddedTtf(string resourceName)
     {
         Assembly assembly = Assembly.GetExecutingAssembly();
-        using Stream stream = assembly.GetManifestResourceStream("Inter-Regular.ttf")!;
+        using Stream stream = assembly.GetManifestResourceStream(resourceName)!;
         using MemoryStream ms = new MemoryStream();
         stream.CopyTo(ms);
         return ms.ToArray();
+    }
+
+    private static byte[] LoadInterTtf()
+    {
+        return LoadEmbeddedTtf("Inter-Regular.ttf");
+    }
+
+    private static byte[] LoadUbuntuTtf()
+    {
+        return LoadEmbeddedTtf("Ubuntu-Light.ttf");
     }
 
     private static byte[] BuildFormeBytes(byte[] ttfData)
@@ -30,7 +40,7 @@ public sealed class FormeFontProcessorTests
     [Fact]
     public void Process_TtfWithAsciiCharset_Produces95Glyphs()
     {
-        byte[] ttfData = LoadEmbeddedTtf();
+        byte[] ttfData = LoadInterTtf();
         FormeFontProcessor processor = new FormeFontProcessor();
         processor.CharacterSet = "ASCII";
 
@@ -42,7 +52,7 @@ public sealed class FormeFontProcessorTests
     [Fact]
     public void Process_TtfWithRangeCharset_ProducesCorrectGlyphCount()
     {
-        byte[] ttfData = LoadEmbeddedTtf();
+        byte[] ttfData = LoadInterTtf();
         FormeFontProcessor processor = new FormeFontProcessor();
         processor.CharacterSet = "65-90";
 
@@ -54,7 +64,7 @@ public sealed class FormeFontProcessorTests
     [Fact]
     public void Process_TtfWithBasicLatinCharset_ProducesGlyphs()
     {
-        byte[] ttfData = LoadEmbeddedTtf();
+        byte[] ttfData = LoadInterTtf();
         FormeFontProcessor processor = new FormeFontProcessor();
         processor.CharacterSet = "BasicLatin";
 
@@ -66,7 +76,7 @@ public sealed class FormeFontProcessorTests
     [Fact]
     public void Process_TtfWithLiteralStringCharset_ProducesMatchingGlyphs()
     {
-        byte[] ttfData = LoadEmbeddedTtf();
+        byte[] ttfData = LoadInterTtf();
         FormeFontProcessor processor = new FormeFontProcessor();
         processor.CharacterSet = "ABC";
 
@@ -78,7 +88,7 @@ public sealed class FormeFontProcessorTests
     [Fact]
     public void Process_FormeFile_LoadsDataAndIgnoresCharset()
     {
-        byte[] ttfData = LoadEmbeddedTtf();
+        byte[] ttfData = LoadInterTtf();
         byte[] formeData = BuildFormeBytes(ttfData);
         FormeFontProcessor processor = new FormeFontProcessor();
         processor.CharacterSet = "65-90";
@@ -92,7 +102,7 @@ public sealed class FormeFontProcessorTests
     [Fact]
     public void Process_SetsMetricsFromFont()
     {
-        byte[] ttfData = LoadEmbeddedTtf();
+        byte[] ttfData = LoadInterTtf();
         FormeFontProcessor processor = new FormeFontProcessor();
         processor.CharacterSet = "ASCII";
 
@@ -106,7 +116,7 @@ public sealed class FormeFontProcessorTests
     [Fact]
     public void Process_PopulatesTextureData()
     {
-        byte[] ttfData = LoadEmbeddedTtf();
+        byte[] ttfData = LoadInterTtf();
         FormeFontProcessor processor = new FormeFontProcessor();
         processor.CharacterSet = "ASCII";
 
@@ -123,7 +133,7 @@ public sealed class FormeFontProcessorTests
     [Fact]
     public void Process_EmptyCharacterSet_ThrowsInvalidContentException()
     {
-        byte[] ttfData = LoadEmbeddedTtf();
+        byte[] ttfData = LoadInterTtf();
         FormeFontProcessor processor = new FormeFontProcessor();
         processor.CharacterSet = "";
 
@@ -136,6 +146,31 @@ public sealed class FormeFontProcessorTests
         FormeFontProcessor processor = new FormeFontProcessor();
 
         Assert.Equal("ASCII", processor.CharacterSet);
+    }
+
+    [Fact]
+    public void Process_UbuntuTtf_PopulatesPairAdjustments()
+    {
+        byte[] ttfData = LoadUbuntuTtf();
+        FormeFontProcessor processor = new FormeFontProcessor();
+        processor.CharacterSet = "AV";
+
+        FormeFontContent result = processor.Process(ttfData, new StubProcessorContext());
+
+        Assert.NotEmpty(result.PairAdjustments);
+    }
+
+    [Fact]
+    public void Process_FormeFile_PreservesPairAdjustments()
+    {
+        byte[] ttfData = LoadUbuntuTtf();
+        byte[] formeData = BuildFormeBytes(ttfData);
+        FormeFontProcessor processor = new FormeFontProcessor();
+        processor.CharacterSet = "A";
+
+        FormeFontContent result = processor.Process(formeData, new StubProcessorContext());
+
+        Assert.NotEmpty(result.PairAdjustments);
     }
 
     private sealed class StubProcessorContext : ContentProcessorContext

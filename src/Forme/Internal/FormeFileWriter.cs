@@ -23,6 +23,7 @@ internal static class FormeFileWriter
         writer.Write(font.Metrics.Ascent);
         writer.Write(font.Metrics.Descent);
         writer.Write(font.Metrics.LineGap);
+        writer.Write((uint)font.PairAdjustments.Count);
 
         foreach (KeyValuePair<int, FormeGlyph> pair in font.Glyphs)
         {
@@ -39,6 +40,14 @@ internal static class FormeFileWriter
             writer.Write((uint)g.BandInfo.DimY);
             writer.Write((ushort)g.BandInfo.TexCoordX);
             writer.Write((ushort)g.BandInfo.TexCoordY);
+        }
+
+        List<ulong> pairKeys = new List<ulong>(font.PairAdjustments.Keys);
+        pairKeys.Sort();
+        foreach (ulong pairKey in pairKeys)
+        {
+            writer.Write(pairKey);
+            writer.Write(font.PairAdjustments[pairKey]);
         }
 
         WriteFloatTexture(writer, font.CurveTexture.Data.Span, font.CurveTexture.Width, font.CurveTexture.Height);

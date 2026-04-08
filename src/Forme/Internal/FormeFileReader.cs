@@ -33,6 +33,7 @@ internal static class FormeFileReader
         int ascent = reader.ReadInt32();
         int descent = reader.ReadInt32();
         int lineGap = reader.ReadInt32();
+        uint pairAdjustmentCount = version >= 2 ? reader.ReadUInt32() : 0;
 
         FontMetrics metrics = new FontMetrics(unitsPerEm, ascent, descent, lineGap);
 
@@ -65,10 +66,18 @@ internal static class FormeFileReader
             glyphs[codePoint] = glyph;
         }
 
+        Dictionary<ulong, int> pairAdjustments = new Dictionary<ulong, int>((int)pairAdjustmentCount);
+        for (int i = 0; i < pairAdjustmentCount; i++)
+        {
+            ulong pairKey = reader.ReadUInt64();
+            int adjustment = reader.ReadInt32();
+            pairAdjustments[pairKey] = adjustment;
+        }
+
         FormeTextureData curveTexture = ReadFloatTexture(reader);
         FormeTextureData bandTexture = ReadFloatTexture(reader);
 
-        return new FormeFont(metrics, glyphs, curveTexture, bandTexture);
+        return new FormeFont(metrics, glyphs, pairAdjustments, curveTexture, bandTexture);
     }
 
     private static void ValidateMagic(BinaryReader reader)

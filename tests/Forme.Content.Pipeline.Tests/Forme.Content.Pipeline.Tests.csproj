@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="..\Forme.Tests\TestData\Inter-Regular.ttf" LogicalName="Inter-Regular.ttf" />
+    <EmbeddedResource Include="..\Forme.Tests\TestData\Ubuntu-Light.ttf" LogicalName="Ubuntu-Light.ttf" />
   </ItemGroup>
 
 </Project>

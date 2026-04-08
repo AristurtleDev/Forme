@@ -7,6 +7,6 @@ namespace Forme.Internal;
 internal static class FormeFileConstants
 {
     internal static readonly byte[] Magic = [(byte)'F', (byte)'O', (byte)'R', (byte)'M', (byte)'E', 0, 0, 0];
-    internal const ushort Version = 1;
+    internal const ushort Version = 2;
     internal const ushort Flags = 0;
 }

@@ -2,6 +2,7 @@
 // Licensed under the MIT license.
 // See LICENSE file in the project root for full license information.
 
+using System.Collections.Generic;
 using Microsoft.Xna.Framework.Content.Pipeline;
 using Microsoft.Xna.Framework.Content.Pipeline.Serialization.Compiler;
 
@@ -32,6 +33,7 @@ public sealed class FormeFontWriter : ContentTypeWriter<FormeFontContent>
         output.Write(value.Metrics.Ascent);
         output.Write(value.Metrics.Descent);
         output.Write(value.Metrics.LineGap);
+        output.Write(value.PairAdjustments.Count);
 
         output.Write(value.Glyphs.Count);
         foreach (FormeGlyph glyph in value.Glyphs)
@@ -48,6 +50,14 @@ public sealed class FormeFontWriter : ContentTypeWriter<FormeFontContent>
             output.Write(glyph.BandInfo.DimY);
             output.Write(glyph.BandInfo.TexCoordX);
             output.Write(glyph.BandInfo.TexCoordY);
+        }
+
+        List<ulong> pairKeys = new List<ulong>(value.PairAdjustments.Keys);
+        pairKeys.Sort();
+        foreach (ulong pairKey in pairKeys)
+        {
+            output.Write(pairKey);
+            output.Write(value.PairAdjustments[pairKey]);
         }
 
         output.Write(value.CurveTextureWidth);

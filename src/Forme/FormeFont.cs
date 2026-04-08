@@ -45,6 +45,17 @@ public sealed class FormeFont
     public IReadOnlyDictionary<int, FormeGlyph> Glyphs { get; }
 
     /// <summary>
+    /// Gets the sparse pair-advance adjustments extracted for this font, keyed by packed
+    /// previous/current Unicode code point pairs.
+    /// </summary>
+    /// <remarks>
+    /// Values are stored in the font's design units, not pixels. Call
+    /// <see cref="TryGetPairAdvanceAdjustment"/> for point lookups instead of decoding keys
+    /// manually.
+    /// </remarks>
+    public IReadOnlyDictionary<ulong, int> PairAdjustments { get; }
+
+    /// <summary>
     /// Gets the curve texture dataset (RGBA32F, 4 floats per texel). Always 4096 texels wide.
     /// </summary>
     public FormeTextureData CurveTexture { get; }
@@ -54,10 +65,16 @@ public sealed class FormeFont
     /// </summary>
     public FormeTextureData BandTexture { get; }
 
-    internal FormeFont(FontMetrics metrics, Dictionary<int, FormeGlyph> glyphs, FormeTextureData curveTexture, FormeTextureData bandTexture)
+    internal FormeFont(
+        FontMetrics metrics,
+        Dictionary<int, FormeGlyph> glyphs,
+        Dictionary<ulong, int> pairAdjustments,
+        FormeTextureData curveTexture,
+        FormeTextureData bandTexture)
     {
         Metrics = metrics;
         Glyphs = glyphs;
+        PairAdjustments = pairAdjustments;
         CurveTexture = curveTexture;
         BandTexture = bandTexture;
     }
@@ -169,6 +186,24 @@ public sealed class FormeFont
         => (Metrics.Ascent - Metrics.Descent + Metrics.LineGap) * (sizePixels / Math.Max(1, Metrics.UnitsPerEm));
 
     /// <summary>
+    /// Gets the horizontal advance adjustment for a specific neighboring glyph pair.
+    /// </summary>
+    /// <param name="previousCodePoint">The Unicode code point of the previous glyph.</param>
+    /// <param name="currentCodePoint">The Unicode code point of the current glyph.</param>
+    /// <param name="adjustment">
+    /// When this method returns <see langword="true"/>, contains the design-unit adjustment to
+    /// add to the normal glyph advance between the two glyphs.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the font contains a non-zero pair adjustment for the given
+    /// neighboring glyphs; otherwise, <see langword="false"/>.
+    /// </returns>
+    public bool TryGetPairAdvanceAdjustment(int previousCodePoint, int currentCodePoint, out int adjustment)
+    {
+        return PairAdjustments.TryGetValue(MakePairAdjustmentKey(previousCodePoint, currentCodePoint), out adjustment);
+    }
+
+    /// <summary>
     /// Measures the logical layout bounds of the given text at the specified size.
     /// </summary>
     /// <param name="text">The text to measure.</param>
@@ -192,8 +227,8 @@ public sealed class FormeFont
     /// <param name="sizePixels">The em-square height in pixels.</param>
     /// <param name="options">Layout options controlling wrapping, spacing, and ellipsis.</param>
     /// <returns>
-    /// Logical bounds in pixels relative to a draw origin at (0, 0). Width reflects the widest
-    /// line layout width after kerning, spacing, wrapping, alignment, and ellipsis policy have
+     /// Logical bounds in pixels relative to a draw origin at (0, 0). Width reflects the widest
+    /// line layout width after pair positioning, spacing, wrapping, alignment, and ellipsis policy have
     /// been applied.
     /// </returns>
     public FormeTextBounds MeasureString(ReadOnlySpan<char> text, float sizePixels, in TextLayoutOptions options)
@@ -221,7 +256,7 @@ public sealed class FormeFont
     /// <param name="options">Layout options controlling wrapping, spacing, and ellipsis.</param>
     /// <returns>
     /// Logical bounds in pixels relative to a draw origin at (0, 0). Width reflects the widest
-    /// line layout width after kerning, spacing, wrapping, alignment, and ellipsis policy have
+    /// line layout width after pair positioning, spacing, wrapping, alignment, and ellipsis policy have
     /// been applied.
     /// </returns>
     public FormeTextBounds MeasureLogicalBounds(ReadOnlySpan<char> text, float sizePixels, in TextLayoutOptions options)
@@ -392,15 +427,24 @@ public sealed class FormeFont
                 TextHorizontalAlignment.Right => -lineWidth,
                 _ => 0f
             };
+            int previousCodePoint = 0;
+            bool hasPreviousGlyph = false;
 
             foreach (CodePointEntry entry in line)
             {
                 if (Glyphs.TryGetValue(entry.CodePoint, out FormeGlyph glyph))
                 {
+                    if (hasPreviousGlyph)
+                    {
+                        cursorX += GetPairAdvanceAdjustment(previousCodePoint, entry.CodePoint, scale);
+                    }
+
                     float advance = glyph.AdvanceWidth * scale + options.CharacterSpacing;
                     FormeTextBounds vb = ComputeVisualBounds(in glyph, cursorX, cursorY, scale);
                     output.Add(new GlyphPlacement(entry.Index, entry.CodePoint, cursorX, cursorY, vb, advance));
                     cursorX += advance;
+                    previousCodePoint = entry.CodePoint;
+                    hasPreviousGlyph = true;
                 }
             }
 
@@ -467,10 +511,13 @@ public sealed class FormeFont
             float lineWidth = 0f;
             int lineEnd = lineStart;
             int lastBreakAt = -1;
+            int previousCodePoint = 0;
+            bool hasPreviousGlyph = false;
 
             while (lineEnd < chars.Count)
             {
-                float advance = MeasureIncrement(chars[lineEnd].CodePoint, scale, options.CharacterSpacing);
+                CodePointEntry entry = chars[lineEnd];
+                float advance = MeasureIncrement(entry.CodePoint, previousCodePoint, hasPreviousGlyph, scale, options.CharacterSpacing);
 
                 // Always take at least one character per line to avoid an infinite loop on
                 // single characters that exceed maxWidth.
@@ -479,12 +526,17 @@ public sealed class FormeFont
                     break;
                 }
 
-                if (chars[lineEnd].CodePoint == ' ')
+                if (entry.CodePoint == ' ')
                 {
                     lastBreakAt = lineEnd;
                 }
 
                 lineWidth += advance;
+                if (Glyphs.ContainsKey(entry.CodePoint))
+                {
+                    previousCodePoint = entry.CodePoint;
+                    hasPreviousGlyph = true;
+                }
                 lineEnd++;
             }
 
@@ -534,6 +586,8 @@ public sealed class FormeFont
         int truncationIndex = text.Length;
         int lastWordBoundary = 0;
         bool prevWasSpace = true;
+        int previousCodePoint = 0;
+        bool hasPreviousGlyph = false;
 
         int i = 0;
         while (i < text.Length)
@@ -546,7 +600,7 @@ public sealed class FormeFont
 
             Rune.DecodeFromUtf16(text[i..], out Rune rune, out int consumed);
             int cp = rune.Value;
-            float advance = MeasureIncrement(cp, scale, options.CharacterSpacing);
+            float advance = MeasureIncrement(cp, previousCodePoint, hasPreviousGlyph, scale, options.CharacterSpacing);
 
             if (cursorWidth + advance > maxWidth)
             {
@@ -563,6 +617,11 @@ public sealed class FormeFont
 
             line.Add(new CodePointEntry(i, cp));
             cursorWidth += advance;
+            if (Glyphs.ContainsKey(cp))
+            {
+                previousCodePoint = cp;
+                hasPreviousGlyph = true;
+            }
             i += consumed;
         }
 
@@ -611,22 +670,17 @@ public sealed class FormeFont
     private float MeasureLineWidth(List<CodePointEntry> line, float scale, float charSpacing)
     {
         float width = 0f;
+        int previousCodePoint = 0;
+        bool hasPreviousGlyph = false;
+
         foreach (CodePointEntry entry in line)
         {
-            width += MeasureIncrement(entry.CodePoint, scale, charSpacing);
-        }
-        return width;
-    }
-
-    private float MeasureStringWidth(ReadOnlySpan<char> text, float scale, float charSpacing)
-    {
-        float width = 0f;
-        int i = 0;
-        while (i < text.Length)
-        {
-            Rune.DecodeFromUtf16(text[i..], out Rune rune, out int consumed);
-            width += MeasureIncrement(rune.Value, scale, charSpacing);
-            i += consumed;
+            width += MeasureIncrement(entry.CodePoint, previousCodePoint, hasPreviousGlyph, scale, charSpacing);
+            if (Glyphs.ContainsKey(entry.CodePoint))
+            {
+                previousCodePoint = entry.CodePoint;
+                hasPreviousGlyph = true;
+            }
         }
         return width;
     }
@@ -658,16 +712,32 @@ public sealed class FormeFont
             y2: baselineY - glyph.BoundingBox.Y1 * scale);
     }
 
-    private float MeasureIncrement(int currentCodePoint, float scale, float charSpacing)
+    internal static ulong MakePairAdjustmentKey(int previousCodePoint, int currentCodePoint)
     {
-        float width = 0f;
+        return ((ulong)(uint)previousCodePoint << 32) | (uint)currentCodePoint;
+    }
 
+    private float MeasureIncrement(int currentCodePoint, int previousCodePoint, bool hasPreviousGlyph, float scale, float charSpacing)
+    {
         if (Glyphs.TryGetValue(currentCodePoint, out FormeGlyph glyph))
         {
-            width += glyph.AdvanceWidth * scale + charSpacing;
+            float width = glyph.AdvanceWidth * scale + charSpacing;
+            if (hasPreviousGlyph)
+            {
+                width += GetPairAdvanceAdjustment(previousCodePoint, currentCodePoint, scale);
+            }
+
+            return width;
         }
 
-        return width;
+        return 0f;
+    }
+
+    private float GetPairAdvanceAdjustment(int previousCodePoint, int currentCodePoint, float scale)
+    {
+        return TryGetPairAdvanceAdjustment(previousCodePoint, currentCodePoint, out int adjustment)
+            ? adjustment * scale
+            : 0f;
     }
 
     private readonly struct CodePointEntry

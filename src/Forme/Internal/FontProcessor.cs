@@ -41,6 +41,7 @@ internal sealed class FontProcessor : IDisposable
     private readonly List<BandTexelCoord> _bandCurveLocs = [];
     private readonly List<GlyphBandRange> _glyphBandRanges = [];
     private readonly List<FormeGlyph> _glyphs = [];
+    private readonly Dictionary<int, int> _glyphIndices = [];
     private readonly List<FormeCurve> _scratchCurves = [];
 
     public unsafe void Load(byte[] ttfData)
@@ -77,6 +78,8 @@ internal sealed class FontProcessor : IDisposable
         {
             return;
         }
+
+        _glyphIndices[codePoint] = glyphIdx;
 
         StbTrueType.stbtt_vertex* verts;
         int vertCount = StbTrueType.stbtt_GetGlyphShape(_fontInfo, glyphIdx, &verts);
@@ -213,7 +216,41 @@ internal sealed class FontProcessor : IDisposable
             glyphs[g.CodePoint] = g;
         }
 
-        return new FormeFont(_metrics, glyphs, curveTexture, bandTexture);
+        Dictionary<ulong, int> pairAdjustments = BuildPairAdjustments();
+        return new FormeFont(_metrics, glyphs, pairAdjustments, curveTexture, bandTexture);
+    }
+
+    private Dictionary<ulong, int> BuildPairAdjustments()
+    {
+        Dictionary<ulong, int> pairAdjustments = new Dictionary<ulong, int>();
+
+        if (_fontInfo == null || (_fontInfo.gpos == 0 && _fontInfo.kern == 0) || _glyphIndices.Count < 2)
+        {
+            return pairAdjustments;
+        }
+
+        List<int> codePoints = new List<int>(_glyphIndices.Keys);
+        codePoints.Sort();
+
+        for (int previousIndex = 0; previousIndex < codePoints.Count; previousIndex++)
+        {
+            int previousCodePoint = codePoints[previousIndex];
+            int previousGlyphIndex = _glyphIndices[previousCodePoint];
+
+            for (int currentIndex = 0; currentIndex < codePoints.Count; currentIndex++)
+            {
+                int currentCodePoint = codePoints[currentIndex];
+                int currentGlyphIndex = _glyphIndices[currentCodePoint];
+                int adjustment = StbTrueType.stbtt_GetGlyphKernAdvance(_fontInfo, previousGlyphIndex, currentGlyphIndex);
+
+                if (adjustment != 0)
+                {
+                    pairAdjustments[FormeFont.MakePairAdjustmentKey(previousCodePoint, currentCodePoint)] = adjustment;
+                }
+            }
+        }
+
+        return pairAdjustments;
     }
 
     private void FixDegenerateControlPoints()

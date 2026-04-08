@@ -25,6 +25,7 @@ public sealed class FormeFontReader : ContentTypeReader<FormeFont>
         int descent = input.ReadInt32();
         int lineGap = input.ReadInt32();
         FontMetrics metrics = new FontMetrics(unitsPerEm, ascent, descent, lineGap);
+        int pairAdjustmentCount = input.ReadInt32();
 
         int glyphCount = input.ReadInt32();
         Dictionary<int, FormeGlyph> glyphs = new Dictionary<int, FormeGlyph>(glyphCount);
@@ -53,6 +54,14 @@ public sealed class FormeFontReader : ContentTypeReader<FormeFont>
             glyphs[codePoint] = glyph;
         }
 
+        Dictionary<ulong, int> pairAdjustments = new Dictionary<ulong, int>(pairAdjustmentCount);
+        for (int i = 0; i < pairAdjustmentCount; i++)
+        {
+            ulong pairKey = input.ReadUInt64();
+            int adjustment = input.ReadInt32();
+            pairAdjustments[pairKey] = adjustment;
+        }
+
         int curveWidth = input.ReadInt32();
         int curveHeight = input.ReadInt32();
         int curveDataLength = input.ReadInt32();
@@ -74,6 +83,7 @@ public sealed class FormeFontReader : ContentTypeReader<FormeFont>
         return new FormeFont(
             metrics,
             glyphs,
+            pairAdjustments,
             new FormeTextureData(curveData, curveWidth, curveHeight),
             new FormeTextureData(bandData, bandWidth, bandHeight));
     }
