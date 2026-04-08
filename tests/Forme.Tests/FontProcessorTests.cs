@@ -474,6 +474,27 @@ public class FontProcessorTests
     }
 
     [Fact]
+    public void LayoutText_CanQueryGlyphByPoint()
+    {
+        byte[] ttf = LoadTestFont();
+        FormeFont font = FormeFont.FromTtf(ttf, CharacterSet.Ascii);
+        TextLayoutOptions options = new TextLayoutOptions
+        {
+            LineSpacing = 10f
+        };
+        TextLayoutResult result = font.LayoutText("AB\nCD".AsSpan(), 28f, in options);
+
+        GlyphPlacement glyph0 = result.Glyphs[0];
+        float glyph0CenterX = (glyph0.LogicalBounds.X + glyph0.LogicalBounds.X2) * 0.5f;
+        float glyph0CenterY = (glyph0.LogicalBounds.Y + glyph0.LogicalBounds.Y2) * 0.5f;
+        float gapY = (result.Lines[0].LogicalBounds.Y2 + result.Lines[1].LogicalBounds.Y) * 0.5f;
+
+        Assert.True(result.TryGetGlyphIndexFromPoint(glyph0CenterX, glyph0CenterY, out int glyphIndex));
+        Assert.Equal(0, glyphIndex);
+        Assert.False(result.TryGetGlyphIndexFromPoint(glyph0CenterX, gapY, out _));
+    }
+
+    [Fact]
     public void LayoutText_CanQueryLineAndRunByGlyphIndex()
     {
         byte[] ttf = LoadTestFont();

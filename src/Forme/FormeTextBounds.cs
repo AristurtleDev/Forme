@@ -51,6 +51,20 @@ public readonly struct FormeTextBounds
     public float Height => Y2 - Y;
 
     /// <summary>
+    /// Returns whether the given point lies within this rectangle.
+    /// </summary>
+    /// <param name="x">The X position to test.</param>
+    /// <param name="y">The Y position to test.</param>
+    /// <returns>
+    /// <see langword="true"/> when the point is inside the rectangle's half-open bounds;
+    /// otherwise, <see langword="false"/>.
+    /// </returns>
+    public bool Contains(float x, float y)
+    {
+        return x >= X && x < X2 && y >= Y && y < Y2;
+    }
+
+    /// <summary>
     /// Initializes a new <see cref="FormeTextBounds"/> with the given edges.
     /// </summary>
     /// <param name="x">Left edge in pixels.</param>

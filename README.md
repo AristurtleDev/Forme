@@ -130,7 +130,7 @@ Each glyph includes both logical bounds and visual bounds.
 `TextLayoutResult` also provides helper methods to query the owning line, run, or glyph index for
 UTF-16 source positions that fall within laid-out source ranges, and to query owning line/run
 indices for glyph indices.
-It also provides line lookup by Y position for geometry-driven consumers.
+It also provides line lookup by Y position and glyph lookup by point for geometry-driven consumers.
 Lines, runs, and glyphs also expose end indices and `ContainsTextIndex(...)` helpers for their
 source-text ranges.
 

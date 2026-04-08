@@ -140,6 +140,35 @@ public sealed class TextLayoutResult
     }
 
     /// <summary>
+    /// Tries to find the glyph whose logical bounds contain the given point.
+    /// </summary>
+    /// <param name="x">The X position, relative to the layout origin.</param>
+    /// <param name="y">The Y position, relative to the layout origin.</param>
+    /// <param name="glyphIndex">
+    /// When this method returns <see langword="true"/>, contains the matching glyph index within
+    /// <see cref="Glyphs"/>.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the point falls within a glyph's logical bounds; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetGlyphIndexFromPoint(float x, float y, out int glyphIndex)
+    {
+        for (int i = 0; i < Glyphs.Count; i++)
+        {
+            GlyphPlacement glyph = Glyphs[i];
+            if (glyph.LogicalBounds.Contains(x, y))
+            {
+                glyphIndex = i;
+                return true;
+            }
+        }
+
+        glyphIndex = -1;
+        return false;
+    }
+
+    /// <summary>
     /// Tries to find the line whose logical bounds contain the given Y position.
     /// </summary>
     /// <param name="y">The Y position, relative to the layout origin.</param>
