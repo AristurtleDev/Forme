@@ -123,6 +123,8 @@ logical bounds, visual bounds, the source-text range, and the glyph range for th
 layout path produces one run spanning the whole request, and that run reports the `FormeFont`
 instance and `SizePixels` used for layout.
 
+Each `GlyphPlacement` also reports its UTF-16 source index and source-text length.
+
 Query baseline-relative font metrics in pixel space:
 
 ```csharp

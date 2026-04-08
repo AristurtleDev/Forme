@@ -22,6 +22,11 @@ public readonly struct GlyphPlacement
     public int Index { get; }
 
     /// <summary>
+    /// Gets the UTF-16 length of the source text represented by this glyph.
+    /// </summary>
+    public int TextLength { get; }
+
+    /// <summary>
     /// Gets the Unicode code point this glyph represents.
     /// </summary>
     public int CodePoint { get; }
@@ -59,6 +64,7 @@ public readonly struct GlyphPlacement
     /// </summary>
     public GlyphPlacement(
         int index,
+        int textLength,
         int codePoint,
         float baselineX,
         float baselineY,
@@ -66,6 +72,7 @@ public readonly struct GlyphPlacement
         float advanceWidth)
     {
         Index = index;
+        TextLength = textLength;
         CodePoint = codePoint;
         BaselineX = baselineX;
         BaselineY = baselineY;

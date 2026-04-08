@@ -394,6 +394,21 @@ public class FontProcessorTests
     }
 
     [Fact]
+    public void LayoutText_GlyphPlacementsExposeSourceTextLength()
+    {
+        byte[] ttf = LoadTestFont();
+        FormeFont font = FormeFont.FromTtf(ttf, CharacterSet.Ascii);
+
+        TextLayoutResult result = font.LayoutText("AB".AsSpan(), 28f);
+
+        Assert.Equal(2, result.Glyphs.Count);
+        Assert.Equal(0, result.Glyphs[0].Index);
+        Assert.Equal(1, result.Glyphs[0].TextLength);
+        Assert.Equal(1, result.Glyphs[1].Index);
+        Assert.Equal(1, result.Glyphs[1].TextLength);
+    }
+
+    [Fact]
     public void LayoutText_RightAlignedLine_ReportsShiftedLogicalBounds()
     {
         byte[] ttf = LoadTestFont();
