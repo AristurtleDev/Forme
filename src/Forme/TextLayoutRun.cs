@@ -25,6 +25,11 @@ public readonly struct TextLayoutRun
     public float SizePixels { get; }
 
     /// <summary>
+    /// Gets the text decorations requested for this run.
+    /// </summary>
+    public TextDecorations Decorations { get; }
+
+    /// <summary>
     /// Gets the zero-based UTF-16 start index of this run within the source text.
     /// </summary>
     public int TextStart { get; }
@@ -93,6 +98,7 @@ public readonly struct TextLayoutRun
     public TextLayoutRun(
         FormeFont font,
         float sizePixels,
+        TextDecorations decorations,
         int textStart,
         int textLength,
         int glyphStart,
@@ -104,6 +110,7 @@ public readonly struct TextLayoutRun
     {
         Font = font;
         SizePixels = sizePixels;
+        Decorations = decorations;
         TextStart = textStart;
         TextLength = textLength;
         GlyphStart = glyphStart;

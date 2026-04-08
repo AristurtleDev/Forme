@@ -389,6 +389,7 @@ public class FontProcessorTests
         TextLayoutRun run = result.Runs[0];
         Assert.Same(font, run.Font);
         Assert.Equal(sizePixels, run.SizePixels);
+        Assert.Equal(TextDecorations.None, run.Decorations);
         Assert.Equal(0, run.TextStart);
         Assert.Equal(text.Length, run.TextLength);
         Assert.Equal(0, run.GlyphStart);
@@ -649,6 +650,16 @@ public class FontProcessorTests
         Assert.Equal(glyph0.Index + glyph0.TextLength, glyph0.TextEnd);
         Assert.True(glyph0.ContainsTextIndex(0));
         Assert.False(glyph0.ContainsTextIndex(1));
+    }
+
+    [Fact]
+    public void TextDecorations_FlagsSupportCommonCombinations()
+    {
+        TextDecorations decorations = TextDecorations.Underline | TextDecorations.Strikethrough;
+
+        Assert.True((decorations & TextDecorations.Underline) != 0);
+        Assert.True((decorations & TextDecorations.Strikethrough) != 0);
+        Assert.False((decorations & TextDecorations.Background) != 0);
     }
 
     [Fact]
