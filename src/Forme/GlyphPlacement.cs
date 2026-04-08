@@ -56,6 +56,14 @@ public readonly struct GlyphPlacement
     public float BaselineY { get; }
 
     /// <summary>
+    /// Gets the logical bounding rectangle of this glyph in pixels, relative to the draw origin.
+    /// </summary>
+    /// <remarks>
+    /// This box reflects the glyph's allocated layout cell rather than its outline overhang.
+    /// </remarks>
+    public FormeTextBounds LogicalBounds { get; }
+
+    /// <summary>
     /// Gets the visual bounding rectangle of this glyph in pixels, relative to the draw origin.
     /// </summary>
     /// <remarks>
@@ -80,6 +88,7 @@ public readonly struct GlyphPlacement
         int runIndex,
         float baselineX,
         float baselineY,
+        FormeTextBounds logicalBounds,
         FormeTextBounds visualBounds,
         float advanceWidth)
     {
@@ -90,6 +99,7 @@ public readonly struct GlyphPlacement
         RunIndex = runIndex;
         BaselineX = baselineX;
         BaselineY = baselineY;
+        LogicalBounds = logicalBounds;
         VisualBounds = visualBounds;
         AdvanceWidth = advanceWidth;
     }

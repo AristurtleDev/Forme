@@ -125,6 +125,7 @@ instance, `SizePixels`, logical bounds, visual bounds, and touched line range us
 
 Each `GlyphPlacement` also reports its UTF-16 source index and source-text length.
 It also reports the owning line and run index within the layout result.
+Each glyph includes both logical bounds and visual bounds.
 
 Query baseline-relative font metrics in pixel space:
 

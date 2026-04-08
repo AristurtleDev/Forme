@@ -396,8 +396,13 @@ public sealed class FormeFont
                     }
 
                     float advance = glyph.AdvanceWidth * scale + options.CharacterSpacing;
+                    FormeTextBounds glyphLogicalBounds = new FormeTextBounds(
+                        cursorX,
+                        cursorY - scaledMetrics.BaselineToTop,
+                        cursorX + advance,
+                        cursorY + scaledMetrics.BaselineToBottom);
                     FormeTextBounds visualBounds = ComputeVisualBounds(in glyph, cursorX, cursorY, scale);
-                    placements.Add(new GlyphPlacement(entry.Index, entry.Utf16Length, entry.CodePoint, lineIndex, 0, cursorX, cursorY, visualBounds, advance));
+                    placements.Add(new GlyphPlacement(entry.Index, entry.Utf16Length, entry.CodePoint, lineIndex, 0, cursorX, cursorY, glyphLogicalBounds, visualBounds, advance));
 
                     if (visualBounds.Width > 0f && visualBounds.Height > 0f)
                     {
