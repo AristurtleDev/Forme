@@ -116,6 +116,9 @@ IReadOnlyList<GlyphPlacement> glyphs = font.GetGlyphs("Hello, world!", sizePixel
 TextLayoutResult layout = font.LayoutText("Hello, world!", sizePixels: 32, options);
 ```
 
+Each `TextLayoutLine` in `layout.Lines` includes baseline Y, line height, ascent, descent,
+logical bounds, visual bounds, and the glyph range for that line.
+
 Query baseline-relative font metrics in pixel space:
 
 ```csharp

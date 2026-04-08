@@ -475,6 +475,8 @@ public sealed class FormeFont
             lines.Add(new TextLayoutLine(
                 cursorY,
                 lineHeight,
+                scaledMetrics.Ascent,
+                scaledMetrics.Descent,
                 lineWidth,
                 lineLogicalBounds,
                 lineVisualBounds,

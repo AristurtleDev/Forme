@@ -20,6 +20,18 @@ public readonly struct TextLayoutLine
     public float LineHeight { get; }
 
     /// <summary>
+    /// Gets the ascent used for this line in pixels. This value is positive and extends upward
+    /// from the baseline.
+    /// </summary>
+    public float Ascent { get; }
+
+    /// <summary>
+    /// Gets the descent used for this line in pixels. This value is typically negative and extends
+    /// downward from the baseline.
+    /// </summary>
+    public float Descent { get; }
+
+    /// <summary>
     /// Gets the logical line width in pixels after wrapping, alignment, and pair positioning.
     /// </summary>
     public float Width { get; }
@@ -50,6 +62,8 @@ public readonly struct TextLayoutLine
     public TextLayoutLine(
         float baselineY,
         float lineHeight,
+        float ascent,
+        float descent,
         float width,
         FormeTextBounds logicalBounds,
         FormeTextBounds visualBounds,
@@ -58,6 +72,8 @@ public readonly struct TextLayoutLine
     {
         BaselineY = baselineY;
         LineHeight = lineHeight;
+        Ascent = ascent;
+        Descent = descent;
         Width = width;
         LogicalBounds = logicalBounds;
         VisualBounds = visualBounds;

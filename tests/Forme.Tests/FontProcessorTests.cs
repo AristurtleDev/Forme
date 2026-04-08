@@ -328,6 +328,27 @@ public class FontProcessorTests
     }
 
     [Fact]
+    public void LayoutText_LinesExposeScaledAscentAndDescent()
+    {
+        byte[] ttf = LoadTestFont();
+        FormeFont font = FormeFont.FromTtf(ttf, CharacterSet.Ascii);
+        float sizePixels = 28f;
+        ScaledFontMetrics scaledMetrics = font.GetScaledMetrics(sizePixels);
+
+        TextLayoutResult result = font.LayoutText("Line one\nLine two".AsSpan(), sizePixels);
+
+        Assert.True(result.Lines.Count >= 2);
+
+        foreach (TextLayoutLine line in result.Lines)
+        {
+            Assert.Equal(scaledMetrics.Ascent, line.Ascent);
+            Assert.Equal(scaledMetrics.Descent, line.Descent);
+            Assert.Equal(line.BaselineY - line.Ascent, line.LogicalBounds.Y);
+            Assert.Equal(line.BaselineY - line.Descent, line.LogicalBounds.Y2);
+        }
+    }
+
+    [Fact]
     public void LayoutText_RightAlignedLine_ReportsShiftedLogicalBounds()
     {
         byte[] ttf = LoadTestFont();
