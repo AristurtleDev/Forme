@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using Xunit;
@@ -161,5 +162,58 @@ public class FontProcessorTests
         Assert.True(font.Glyphs.ContainsKey('B'));
         Assert.True(font.Glyphs.ContainsKey('C'));
         Assert.False(font.Glyphs.ContainsKey('D'));
+    }
+
+    [Fact]
+    public void MeasureVisualBounds_MatchesUnionOfGlyphVisualBounds()
+    {
+        byte[] ttf = LoadTestFont();
+        FormeFont font = FormeFont.FromTtf(ttf, CharacterSet.Ascii);
+        TextLayoutOptions options = new TextLayoutOptions
+        {
+            MaxWidth = 80f
+        };
+
+        IReadOnlyList<GlyphPlacement> placements = font.GetGlyphs("AVATAR".AsSpan(), 32f, in options);
+        FormeTextBounds visual = font.MeasureVisualBounds("AVATAR".AsSpan(), 32f, in options);
+
+        float minX = float.MaxValue;
+        float minY = float.MaxValue;
+        float maxX = float.MinValue;
+        float maxY = float.MinValue;
+        bool foundVisible = false;
+
+        foreach (GlyphPlacement placement in placements)
+        {
+            if (placement.VisualBounds.Width <= 0f || placement.VisualBounds.Height <= 0f)
+            {
+                continue;
+            }
+
+            if (placement.VisualBounds.X < minX)
+            {
+                minX = placement.VisualBounds.X;
+            }
+            if (placement.VisualBounds.Y < minY)
+            {
+                minY = placement.VisualBounds.Y;
+            }
+            if (placement.VisualBounds.X2 > maxX)
+            {
+                maxX = placement.VisualBounds.X2;
+            }
+            if (placement.VisualBounds.Y2 > maxY)
+            {
+                maxY = placement.VisualBounds.Y2;
+            }
+
+            foundVisible = true;
+        }
+
+        Assert.True(foundVisible);
+        Assert.Equal(minX, visual.X);
+        Assert.Equal(minY, visual.Y);
+        Assert.Equal(maxX, visual.X2);
+        Assert.Equal(maxY, visual.Y2);
     }
 }

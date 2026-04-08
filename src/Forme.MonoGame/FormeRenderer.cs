@@ -208,21 +208,8 @@ public sealed class FormeRenderer : IDisposable
                 "Begin() must be called before DrawString().");
         }
 
-        float scale = sizePixels / Math.Max(1, font.Metrics.UnitsPerEm);
-        float cursorX = position.X;
-
-        int i = 0;
-        while (i < text.Length)
-        {
-            Rune.DecodeFromUtf16(text.AsSpan(i), out Rune rune, out int charsConsumed);
-            i += charsConsumed;
-
-            if (font.Glyphs.TryGetValue(rune.Value, out FormeGlyph glyph))
-            {
-                _queue.Add(new QueuedDraw(font, glyph, rune.Value, new Vector2(cursorX, position.Y), sizePixels, color));
-                cursorX += glyph.AdvanceWidth * scale;
-            }
-        }
+        TextLayoutOptions options = default;
+        DrawString(font, text, position, sizePixels, color, in options);
     }
 
     /// <summary>

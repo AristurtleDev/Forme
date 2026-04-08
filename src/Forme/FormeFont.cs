@@ -169,33 +169,62 @@ public sealed class FormeFont
         => (Metrics.Ascent - Metrics.Descent + Metrics.LineGap) * (sizePixels / Math.Max(1, Metrics.UnitsPerEm));
 
     /// <summary>
-    /// Measures the bounding rectangle of the given text at the specified size.
+    /// Measures the logical layout bounds of the given text at the specified size.
     /// </summary>
     /// <param name="text">The text to measure.</param>
     /// <param name="sizePixels">The em-square height in pixels.</param>
     /// <returns>
-    /// Bounds in pixels relative to a draw origin at (0, 0). Y is negative for glyphs
-    /// extending above the baseline; Y2 is positive for descenders below it.
+    /// Logical bounds in pixels relative to a draw origin at (0, 0). X is always 0 for
+    /// left-aligned text, Y is derived from font ascent, and X2 represents the line layout
+    /// width rather than the visual overhang of specific glyph outlines.
     /// </returns>
     public FormeTextBounds MeasureString(ReadOnlySpan<char> text, float sizePixels)
     {
         TextLayoutOptions options = default;
-        return MeasureString(text, sizePixels, in options);
+        return MeasureLogicalBounds(text, sizePixels, in options);
     }
 
     /// <summary>
-    /// Measures the bounding rectangle of the given text at the specified size using the
+    /// Measures the logical layout bounds of the given text at the specified size using the
     /// provided layout options.
     /// </summary>
     /// <param name="text">The text to measure.</param>
     /// <param name="sizePixels">The em-square height in pixels.</param>
     /// <param name="options">Layout options controlling wrapping, spacing, and ellipsis.</param>
     /// <returns>
-    /// Bounds in pixels relative to a draw origin at (0, 0). Width reflects the widest line;
-    /// height spans from the top of the ascenders on the first line to the bottom of the
-    /// descenders on the last line.
+    /// Logical bounds in pixels relative to a draw origin at (0, 0). Width reflects the widest
+    /// line layout width after kerning, spacing, wrapping, alignment, and ellipsis policy have
+    /// been applied.
     /// </returns>
     public FormeTextBounds MeasureString(ReadOnlySpan<char> text, float sizePixels, in TextLayoutOptions options)
+    {
+        return MeasureLogicalBounds(text, sizePixels, in options);
+    }
+
+    /// <summary>
+    /// Measures the logical layout bounds of the given text at the specified size.
+    /// </summary>
+    /// <param name="text">The text to measure.</param>
+    /// <param name="sizePixels">The em-square height in pixels.</param>
+    public FormeTextBounds MeasureLogicalBounds(ReadOnlySpan<char> text, float sizePixels)
+    {
+        TextLayoutOptions options = default;
+        return MeasureLogicalBounds(text, sizePixels, in options);
+    }
+
+    /// <summary>
+    /// Measures the logical layout bounds of the given text at the specified size using the
+    /// provided layout options.
+    /// </summary>
+    /// <param name="text">The text to measure.</param>
+    /// <param name="sizePixels">The em-square height in pixels.</param>
+    /// <param name="options">Layout options controlling wrapping, spacing, and ellipsis.</param>
+    /// <returns>
+    /// Logical bounds in pixels relative to a draw origin at (0, 0). Width reflects the widest
+    /// line layout width after kerning, spacing, wrapping, alignment, and ellipsis policy have
+    /// been applied.
+    /// </returns>
+    public FormeTextBounds MeasureLogicalBounds(ReadOnlySpan<char> text, float sizePixels, in TextLayoutOptions options)
     {
         if (text.IsEmpty)
         {
@@ -227,6 +256,90 @@ public sealed class FormeFont
             y: -(Metrics.Ascent * scale),
             x2: maxLineWidth,
             y2: (lines.Count - 1) * lineHeight + (-Metrics.Descent * scale));
+    }
+
+    /// <summary>
+    /// Measures the visual bounds of the given text at the specified size.
+    /// </summary>
+    /// <param name="text">The text to measure.</param>
+    /// <param name="sizePixels">The em-square height in pixels.</param>
+    /// <returns>
+    /// Visual bounds in pixels relative to a draw origin at (0, 0), derived from the union of
+    /// visible glyph outline bounds after layout is applied.
+    /// </returns>
+    public FormeTextBounds MeasureVisualBounds(ReadOnlySpan<char> text, float sizePixels)
+    {
+        TextLayoutOptions options = default;
+        return MeasureVisualBounds(text, sizePixels, in options);
+    }
+
+    /// <summary>
+    /// Measures the visual bounds of the given text at the specified size using the provided
+    /// layout options.
+    /// </summary>
+    /// <param name="text">The text to measure.</param>
+    /// <param name="sizePixels">The em-square height in pixels.</param>
+    /// <param name="options">Layout options controlling wrapping, spacing, and ellipsis.</param>
+    /// <returns>
+    /// Visual bounds in pixels relative to a draw origin at (0, 0), derived from the union of
+    /// visible glyph outline bounds after layout is applied.
+    /// </returns>
+    public FormeTextBounds MeasureVisualBounds(ReadOnlySpan<char> text, float sizePixels, in TextLayoutOptions options)
+    {
+        if (text.IsEmpty)
+        {
+            return FormeTextBounds.Empty;
+        }
+
+        IReadOnlyList<GlyphPlacement> placements = GetGlyphs(text, sizePixels, in options);
+
+        bool hasVisibleBounds = false;
+        float minX = 0f;
+        float minY = 0f;
+        float maxX = 0f;
+        float maxY = 0f;
+
+        foreach (GlyphPlacement placement in placements)
+        {
+            if (placement.VisualBounds.Width <= 0f || placement.VisualBounds.Height <= 0f)
+            {
+                continue;
+            }
+
+            if (!hasVisibleBounds)
+            {
+                minX = placement.VisualBounds.X;
+                minY = placement.VisualBounds.Y;
+                maxX = placement.VisualBounds.X2;
+                maxY = placement.VisualBounds.Y2;
+                hasVisibleBounds = true;
+                continue;
+            }
+
+            if (placement.VisualBounds.X < minX)
+            {
+                minX = placement.VisualBounds.X;
+            }
+            if (placement.VisualBounds.Y < minY)
+            {
+                minY = placement.VisualBounds.Y;
+            }
+            if (placement.VisualBounds.X2 > maxX)
+            {
+                maxX = placement.VisualBounds.X2;
+            }
+            if (placement.VisualBounds.Y2 > maxY)
+            {
+                maxY = placement.VisualBounds.Y2;
+            }
+        }
+
+        if (!hasVisibleBounds)
+        {
+            return FormeTextBounds.Empty;
+        }
+
+        return new FormeTextBounds(minX, minY, maxX, maxY);
     }
 
     /// <summary>
@@ -341,20 +454,7 @@ public sealed class FormeFont
     {
         float maxWidth = options.MaxWidth!.Value;
 
-        List<CodePointWithAdvance> chars = new(segment.Length);
-        int i = 0;
-        while (i < segment.Length)
-        {
-            Rune.DecodeFromUtf16(segment[i..], out Rune rune, out int consumed);
-            float advance = 0f;
-            if (Glyphs.TryGetValue(rune.Value, out FormeGlyph g))
-            {
-                advance = g.AdvanceWidth * scale + options.CharacterSpacing;
-            }
-            chars.Add(new CodePointWithAdvance(segmentOffset + i, rune.Value, advance));
-            i += consumed;
-        }
-
+        List<CodePointEntry> chars = DecodeSegment(segment, segmentOffset);
         if (chars.Count == 0)
         {
             output.Add(new List<CodePointEntry>());
@@ -370,9 +470,11 @@ public sealed class FormeFont
 
             while (lineEnd < chars.Count)
             {
+                float advance = MeasureIncrement(chars[lineEnd].CodePoint, scale, options.CharacterSpacing);
+
                 // Always take at least one character per line to avoid an infinite loop on
                 // single characters that exceed maxWidth.
-                if (lineEnd > lineStart && lineWidth + chars[lineEnd].Advance > maxWidth)
+                if (lineEnd > lineStart && lineWidth + advance > maxWidth)
                 {
                     break;
                 }
@@ -382,7 +484,7 @@ public sealed class FormeFont
                     lastBreakAt = lineEnd;
                 }
 
-                lineWidth += chars[lineEnd].Advance;
+                lineWidth += advance;
                 lineEnd++;
             }
 
@@ -410,7 +512,7 @@ public sealed class FormeFont
             List<CodePointEntry> line = new(actualEnd - lineStart);
             for (int j = lineStart; j < actualEnd; j++)
             {
-                line.Add(new CodePointEntry(chars[j].Index, chars[j].CodePoint));
+                line.Add(chars[j]);
             }
             output.Add(line);
 
@@ -426,9 +528,6 @@ public sealed class FormeFont
     {
         float maxWidth = options.MaxWidth!.Value;
         string ellipsisStr = options.EllipsisString ?? "...";
-
-        float ellipsisWidth = MeasureStringWidth(ellipsisStr.AsSpan(), scale, options.CharacterSpacing);
-        float availableWidth = maxWidth - ellipsisWidth;
 
         List<CodePointEntry> line = new();
         float cursorWidth = 0f;
@@ -447,14 +546,9 @@ public sealed class FormeFont
 
             Rune.DecodeFromUtf16(text[i..], out Rune rune, out int consumed);
             int cp = rune.Value;
+            float advance = MeasureIncrement(cp, scale, options.CharacterSpacing);
 
-            float advance = 0f;
-            if (Glyphs.TryGetValue(cp, out FormeGlyph g))
-            {
-                advance = g.AdvanceWidth * scale + options.CharacterSpacing;
-            }
-
-            if (cursorWidth + advance > availableWidth)
+            if (cursorWidth + advance > maxWidth)
             {
                 truncationIndex = i;
                 break;
@@ -490,12 +584,24 @@ public sealed class FormeFont
                 }
             }
 
-            int ei = 0;
-            while (ei < ellipsisStr.Length)
+            List<CodePointEntry> ellipsisEntries = DecodeSegment(ellipsisStr, truncationIndex);
+            for (int ei = 0; ei < ellipsisEntries.Count; ei++)
             {
-                Rune.DecodeFromUtf16(ellipsisStr.AsSpan(ei), out Rune er, out int ec);
-                line.Add(new CodePointEntry(truncationIndex, er.Value));
-                ei += ec;
+                line.Add(ellipsisEntries[ei]);
+            }
+
+            int ellipsisCount = ellipsisEntries.Count;
+            while (line.Count > 0 && MeasureLineWidth(line, scale, options.CharacterSpacing) > maxWidth)
+            {
+                int removableIndex = line.Count - ellipsisCount - 1;
+                if (removableIndex >= 0)
+                {
+                    line.RemoveAt(removableIndex);
+                    continue;
+                }
+
+                line.RemoveAt(0);
+                ellipsisCount--;
             }
         }
 
@@ -507,10 +613,7 @@ public sealed class FormeFont
         float width = 0f;
         foreach (CodePointEntry entry in line)
         {
-            if (Glyphs.TryGetValue(entry.CodePoint, out FormeGlyph g))
-            {
-                width += g.AdvanceWidth * scale + charSpacing;
-            }
+            width += MeasureIncrement(entry.CodePoint, scale, charSpacing);
         }
         return width;
     }
@@ -522,10 +625,7 @@ public sealed class FormeFont
         while (i < text.Length)
         {
             Rune.DecodeFromUtf16(text[i..], out Rune rune, out int consumed);
-            if (Glyphs.TryGetValue(rune.Value, out FormeGlyph g))
-            {
-                width += g.AdvanceWidth * scale + charSpacing;
-            }
+            width += MeasureIncrement(rune.Value, scale, charSpacing);
             i += consumed;
         }
         return width;
@@ -558,6 +658,18 @@ public sealed class FormeFont
             y2: baselineY - glyph.BoundingBox.Y1 * scale);
     }
 
+    private float MeasureIncrement(int currentCodePoint, float scale, float charSpacing)
+    {
+        float width = 0f;
+
+        if (Glyphs.TryGetValue(currentCodePoint, out FormeGlyph glyph))
+        {
+            width += glyph.AdvanceWidth * scale + charSpacing;
+        }
+
+        return width;
+    }
+
     private readonly struct CodePointEntry
     {
         internal int Index { get; }
@@ -570,17 +682,4 @@ public sealed class FormeFont
         }
     }
 
-    private readonly struct CodePointWithAdvance
-    {
-        internal int Index { get; }
-        internal int CodePoint { get; }
-        internal float Advance { get; }
-
-        internal CodePointWithAdvance(int index, int codePoint, float advance)
-        {
-            Index = index;
-            CodePoint = codePoint;
-            Advance = advance;
-        }
-    }
 }
