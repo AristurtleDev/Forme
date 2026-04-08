@@ -280,37 +280,7 @@ public sealed class FormeFont
     /// </returns>
     public FormeTextBounds MeasureLogicalBounds(ReadOnlySpan<char> text, float sizePixels, in TextLayoutOptions options)
     {
-        if (text.IsEmpty)
-        {
-            return FormeTextBounds.Empty;
-        }
-
-        ScaledFontMetrics scaledMetrics = GetScaledMetrics(sizePixels);
-        float scale = sizePixels / Math.Max(1, Metrics.UnitsPerEm);
-        float lineHeight = scaledMetrics.LineHeight + options.LineSpacing;
-
-        List<List<CodePointEntry>> lines = BuildLines(text, scale, in options);
-
-        if (lines.Count == 0)
-        {
-            return FormeTextBounds.Empty;
-        }
-
-        float maxLineWidth = 0f;
-        foreach (List<CodePointEntry> line in lines)
-        {
-            float lineWidth = MeasureLineWidth(line, scale, options.CharacterSpacing);
-            if (lineWidth > maxLineWidth)
-            {
-                maxLineWidth = lineWidth;
-            }
-        }
-
-        return new FormeTextBounds(
-            x: 0f,
-            y: -scaledMetrics.BaselineToTop,
-            x2: maxLineWidth,
-            y2: (lines.Count - 1) * lineHeight + scaledMetrics.BaselineToBottom);
+        return LayoutText(text, sizePixels, in options).LogicalBounds;
     }
 
     /// <summary>
@@ -341,60 +311,189 @@ public sealed class FormeFont
     /// </returns>
     public FormeTextBounds MeasureVisualBounds(ReadOnlySpan<char> text, float sizePixels, in TextLayoutOptions options)
     {
+        return LayoutText(text, sizePixels, in options).VisualBounds;
+    }
+
+    /// <summary>
+    /// Returns the full reusable layout result for the given text.
+    /// </summary>
+    /// <param name="text">The text to lay out.</param>
+    /// <param name="sizePixels">The em-square height in pixels.</param>
+    public TextLayoutResult LayoutText(ReadOnlySpan<char> text, float sizePixels)
+    {
+        TextLayoutOptions options = default;
+        return LayoutText(text, sizePixels, in options);
+    }
+
+    /// <summary>
+    /// Returns the full reusable layout result for the given text, applying the provided layout
+    /// options.
+    /// </summary>
+    /// <param name="text">The text to lay out.</param>
+    /// <param name="sizePixels">The em-square height in pixels.</param>
+    /// <param name="options">Layout options controlling wrapping, spacing, alignment, and ellipsis.</param>
+    public TextLayoutResult LayoutText(ReadOnlySpan<char> text, float sizePixels, in TextLayoutOptions options)
+    {
         if (text.IsEmpty)
         {
-            return FormeTextBounds.Empty;
+            return TextLayoutResult.Empty;
         }
 
-        IReadOnlyList<GlyphPlacement> placements = GetGlyphs(text, sizePixels, in options);
+        ScaledFontMetrics scaledMetrics = GetScaledMetrics(sizePixels);
+        float scale = sizePixels / Math.Max(1, Metrics.UnitsPerEm);
+        float lineHeight = scaledMetrics.LineHeight + options.LineSpacing;
 
+        List<List<CodePointEntry>> codePointLines = BuildLines(text, scale, in options);
+        if (codePointLines.Count == 0)
+        {
+            return TextLayoutResult.Empty;
+        }
+
+        List<GlyphPlacement> placements = new();
+        List<TextLayoutLine> lines = new(codePointLines.Count);
+
+        float maxLineWidth = 0f;
         bool hasVisibleBounds = false;
-        float minX = 0f;
-        float minY = 0f;
-        float maxX = 0f;
-        float maxY = 0f;
+        float visualMinX = 0f;
+        float visualMinY = 0f;
+        float visualMaxX = 0f;
+        float visualMaxY = 0f;
+        float cursorY = 0f;
 
-        foreach (GlyphPlacement placement in placements)
+        foreach (List<CodePointEntry> codePointLine in codePointLines)
         {
-            if (placement.VisualBounds.Width <= 0f || placement.VisualBounds.Height <= 0f)
+            float lineWidth = MeasureLineWidth(codePointLine, scale, options.CharacterSpacing);
+            if (lineWidth > maxLineWidth)
             {
-                continue;
+                maxLineWidth = lineWidth;
             }
 
-            if (!hasVisibleBounds)
+            float lineOriginX = options.Alignment switch
             {
-                minX = placement.VisualBounds.X;
-                minY = placement.VisualBounds.Y;
-                maxX = placement.VisualBounds.X2;
-                maxY = placement.VisualBounds.Y2;
-                hasVisibleBounds = true;
-                continue;
+                TextHorizontalAlignment.Center => -lineWidth * 0.5f,
+                TextHorizontalAlignment.Right => -lineWidth,
+                _ => 0f
+            };
+
+            int glyphStart = placements.Count;
+            float cursorX = lineOriginX;
+            int previousCodePoint = 0;
+            bool hasPreviousGlyph = false;
+            bool lineHasVisibleBounds = false;
+            float lineMinX = 0f;
+            float lineMinY = 0f;
+            float lineMaxX = 0f;
+            float lineMaxY = 0f;
+
+            foreach (CodePointEntry entry in codePointLine)
+            {
+                if (Glyphs.TryGetValue(entry.CodePoint, out FormeGlyph glyph))
+                {
+                    if (hasPreviousGlyph)
+                    {
+                        cursorX += GetPairAdvanceAdjustment(previousCodePoint, entry.CodePoint, scale);
+                    }
+
+                    float advance = glyph.AdvanceWidth * scale + options.CharacterSpacing;
+                    FormeTextBounds visualBounds = ComputeVisualBounds(in glyph, cursorX, cursorY, scale);
+                    placements.Add(new GlyphPlacement(entry.Index, entry.CodePoint, cursorX, cursorY, visualBounds, advance));
+
+                    if (visualBounds.Width > 0f && visualBounds.Height > 0f)
+                    {
+                        if (!lineHasVisibleBounds)
+                        {
+                            lineMinX = visualBounds.X;
+                            lineMinY = visualBounds.Y;
+                            lineMaxX = visualBounds.X2;
+                            lineMaxY = visualBounds.Y2;
+                            lineHasVisibleBounds = true;
+                        }
+                        else
+                        {
+                            if (visualBounds.X < lineMinX)
+                            {
+                                lineMinX = visualBounds.X;
+                            }
+                            if (visualBounds.Y < lineMinY)
+                            {
+                                lineMinY = visualBounds.Y;
+                            }
+                            if (visualBounds.X2 > lineMaxX)
+                            {
+                                lineMaxX = visualBounds.X2;
+                            }
+                            if (visualBounds.Y2 > lineMaxY)
+                            {
+                                lineMaxY = visualBounds.Y2;
+                            }
+                        }
+
+                        if (!hasVisibleBounds)
+                        {
+                            visualMinX = visualBounds.X;
+                            visualMinY = visualBounds.Y;
+                            visualMaxX = visualBounds.X2;
+                            visualMaxY = visualBounds.Y2;
+                            hasVisibleBounds = true;
+                        }
+                        else
+                        {
+                            if (visualBounds.X < visualMinX)
+                            {
+                                visualMinX = visualBounds.X;
+                            }
+                            if (visualBounds.Y < visualMinY)
+                            {
+                                visualMinY = visualBounds.Y;
+                            }
+                            if (visualBounds.X2 > visualMaxX)
+                            {
+                                visualMaxX = visualBounds.X2;
+                            }
+                            if (visualBounds.Y2 > visualMaxY)
+                            {
+                                visualMaxY = visualBounds.Y2;
+                            }
+                        }
+                    }
+
+                    cursorX += advance;
+                    previousCodePoint = entry.CodePoint;
+                    hasPreviousGlyph = true;
+                }
             }
 
-            if (placement.VisualBounds.X < minX)
-            {
-                minX = placement.VisualBounds.X;
-            }
-            if (placement.VisualBounds.Y < minY)
-            {
-                minY = placement.VisualBounds.Y;
-            }
-            if (placement.VisualBounds.X2 > maxX)
-            {
-                maxX = placement.VisualBounds.X2;
-            }
-            if (placement.VisualBounds.Y2 > maxY)
-            {
-                maxY = placement.VisualBounds.Y2;
-            }
+            FormeTextBounds lineLogicalBounds = new FormeTextBounds(
+                lineOriginX,
+                cursorY - scaledMetrics.BaselineToTop,
+                lineOriginX + lineWidth,
+                cursorY + scaledMetrics.BaselineToBottom);
+            FormeTextBounds lineVisualBounds = lineHasVisibleBounds
+                ? new FormeTextBounds(lineMinX, lineMinY, lineMaxX, lineMaxY)
+                : FormeTextBounds.Empty;
+
+            lines.Add(new TextLayoutLine(
+                cursorY,
+                lineHeight,
+                lineWidth,
+                lineLogicalBounds,
+                lineVisualBounds,
+                glyphStart,
+                placements.Count - glyphStart));
+
+            cursorY += lineHeight;
         }
 
-        if (!hasVisibleBounds)
-        {
-            return FormeTextBounds.Empty;
-        }
+        FormeTextBounds logicalBounds = new FormeTextBounds(
+            0f,
+            -scaledMetrics.BaselineToTop,
+            maxLineWidth,
+            (codePointLines.Count - 1) * lineHeight + scaledMetrics.BaselineToBottom);
+        FormeTextBounds visualBoundsResult = hasVisibleBounds
+            ? new FormeTextBounds(visualMinX, visualMinY, visualMaxX, visualMaxY)
+            : FormeTextBounds.Empty;
 
-        return new FormeTextBounds(minX, minY, maxX, maxY);
+        return new TextLayoutResult(logicalBounds, visualBoundsResult, lines, placements);
     }
 
     /// <summary>
@@ -425,52 +524,7 @@ public sealed class FormeFont
     /// </returns>
     public IReadOnlyList<GlyphPlacement> GetGlyphs(ReadOnlySpan<char> text, float sizePixels, in TextLayoutOptions options)
     {
-        ScaledFontMetrics scaledMetrics = GetScaledMetrics(sizePixels);
-        float scale = sizePixels / Math.Max(1, Metrics.UnitsPerEm);
-        float lineHeight = scaledMetrics.LineHeight + options.LineSpacing;
-
-        List<GlyphPlacement> placements = new();
-        BuildPlacements(text, scale, lineHeight, in options, placements);
-        return placements;
-    }
-
-    private void BuildPlacements(ReadOnlySpan<char> text, float scale, float lineHeight, in TextLayoutOptions options, List<GlyphPlacement> output)
-    {
-        List<List<CodePointEntry>> lines = BuildLines(text, scale, in options);
-        float cursorY = 0f;
-
-        foreach (List<CodePointEntry> line in lines)
-        {
-            float lineWidth = MeasureLineWidth(line, scale, options.CharacterSpacing);
-            float cursorX = options.Alignment switch
-            {
-                TextHorizontalAlignment.Center => -lineWidth * 0.5f,
-                TextHorizontalAlignment.Right => -lineWidth,
-                _ => 0f
-            };
-            int previousCodePoint = 0;
-            bool hasPreviousGlyph = false;
-
-            foreach (CodePointEntry entry in line)
-            {
-                if (Glyphs.TryGetValue(entry.CodePoint, out FormeGlyph glyph))
-                {
-                    if (hasPreviousGlyph)
-                    {
-                        cursorX += GetPairAdvanceAdjustment(previousCodePoint, entry.CodePoint, scale);
-                    }
-
-                    float advance = glyph.AdvanceWidth * scale + options.CharacterSpacing;
-                    FormeTextBounds vb = ComputeVisualBounds(in glyph, cursorX, cursorY, scale);
-                    output.Add(new GlyphPlacement(entry.Index, entry.CodePoint, cursorX, cursorY, vb, advance));
-                    cursorX += advance;
-                    previousCodePoint = entry.CodePoint;
-                    hasPreviousGlyph = true;
-                }
-            }
-
-            cursorY += lineHeight;
-        }
+        return LayoutText(text, sizePixels, in options).Glyphs;
     }
 
     private List<List<CodePointEntry>> BuildLines(ReadOnlySpan<char> text, float scale, in TextLayoutOptions options)

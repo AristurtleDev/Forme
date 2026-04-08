@@ -283,6 +283,68 @@ public class FontProcessorTests
     }
 
     [Fact]
+    public void LayoutText_ExposesSameOverallBoundsAsLegacyApis()
+    {
+        byte[] ttf = LoadTestFont();
+        FormeFont font = FormeFont.FromTtf(ttf, CharacterSet.Ascii);
+        TextLayoutOptions options = new TextLayoutOptions
+        {
+            MaxWidth = 90f
+        };
+
+        TextLayoutResult result = font.LayoutText("AVATAR\nWIDE".AsSpan(), 32f, in options);
+
+        Assert.Equal(font.MeasureLogicalBounds("AVATAR\nWIDE".AsSpan(), 32f, in options), result.LogicalBounds);
+        Assert.Equal(font.MeasureVisualBounds("AVATAR\nWIDE".AsSpan(), 32f, in options), result.VisualBounds);
+        Assert.Equal(font.GetGlyphs("AVATAR\nWIDE".AsSpan(), 32f, in options).Count, result.Glyphs.Count);
+    }
+
+    [Fact]
+    public void LayoutText_WrappedText_ProducesMultipleLinesWithGlyphRanges()
+    {
+        byte[] ttf = LoadTestFont();
+        FormeFont font = FormeFont.FromTtf(ttf, CharacterSet.Ascii);
+        TextLayoutOptions options = new TextLayoutOptions
+        {
+            MaxWidth = 55f
+        };
+
+        TextLayoutResult result = font.LayoutText("Wrap here please".AsSpan(), 24f, in options);
+
+        Assert.True(result.Lines.Count > 1);
+
+        int totalGlyphs = 0;
+        for (int i = 0; i < result.Lines.Count; i++)
+        {
+            TextLayoutLine line = result.Lines[i];
+            Assert.True(line.GlyphStart >= totalGlyphs);
+            Assert.True(line.GlyphCount >= 0);
+            Assert.True(line.Width >= 0f);
+            Assert.Equal(result.LogicalBounds.Y + i * line.LineHeight, line.LogicalBounds.Y);
+            totalGlyphs += line.GlyphCount;
+        }
+
+        Assert.Equal(result.Glyphs.Count, totalGlyphs);
+    }
+
+    [Fact]
+    public void LayoutText_RightAlignedLine_ReportsShiftedLogicalBounds()
+    {
+        byte[] ttf = LoadTestFont();
+        FormeFont font = FormeFont.FromTtf(ttf, CharacterSet.Ascii);
+        TextLayoutOptions options = new TextLayoutOptions
+        {
+            Alignment = TextHorizontalAlignment.Right
+        };
+
+        TextLayoutResult result = font.LayoutText("Right".AsSpan(), 32f, in options);
+        TextLayoutLine line = result.Lines[0];
+
+        Assert.True(line.LogicalBounds.X < 0f);
+        Assert.Equal(0f, line.LogicalBounds.X2);
+    }
+
+    [Fact]
     public void FromTtf_UbuntuFont_ExtractsPairAdjustments()
     {
         byte[] ttf = LoadUbuntuFont();

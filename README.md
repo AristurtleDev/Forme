@@ -113,6 +113,7 @@ TextLayoutOptions options = new TextLayoutOptions
 
 FormeTextBounds bounds = font.MeasureLogicalBounds("Hello, world!", sizePixels: 32, options);
 IReadOnlyList<GlyphPlacement> glyphs = font.GetGlyphs("Hello, world!", sizePixels: 32, options);
+TextLayoutResult layout = font.LayoutText("Hello, world!", sizePixels: 32, options);
 ```
 
 Query baseline-relative font metrics in pixel space:
