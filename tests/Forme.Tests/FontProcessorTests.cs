@@ -297,6 +297,7 @@ public class FontProcessorTests
         Assert.Equal(font.MeasureLogicalBounds("AVATAR\nWIDE".AsSpan(), 32f, in options), result.LogicalBounds);
         Assert.Equal(font.MeasureVisualBounds("AVATAR\nWIDE".AsSpan(), 32f, in options), result.VisualBounds);
         Assert.Equal(font.GetGlyphs("AVATAR\nWIDE".AsSpan(), 32f, in options).Count, result.Glyphs.Count);
+        Assert.Single(result.Runs);
     }
 
     [Fact]
@@ -346,6 +347,24 @@ public class FontProcessorTests
             Assert.Equal(line.BaselineY - line.Ascent, line.LogicalBounds.Y);
             Assert.Equal(line.BaselineY - line.Descent, line.LogicalBounds.Y2);
         }
+    }
+
+    [Fact]
+    public void LayoutText_ProducesRunMappingForWholeSourceText()
+    {
+        byte[] ttf = LoadTestFont();
+        FormeFont font = FormeFont.FromTtf(ttf, CharacterSet.Ascii);
+        string text = "Line one\nLine two";
+
+        TextLayoutResult result = font.LayoutText(text.AsSpan(), 28f);
+
+        Assert.Single(result.Runs);
+
+        TextLayoutRun run = result.Runs[0];
+        Assert.Equal(0, run.TextStart);
+        Assert.Equal(text.Length, run.TextLength);
+        Assert.Equal(0, run.GlyphStart);
+        Assert.Equal(result.Glyphs.Count, run.GlyphCount);
     }
 
     [Fact]

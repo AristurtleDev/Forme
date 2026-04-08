@@ -14,7 +14,7 @@ public sealed class TextLayoutResult
     /// <summary>
     /// Gets an empty layout result with no lines, no glyphs, and empty bounds.
     /// </summary>
-    public static TextLayoutResult Empty { get; } = new TextLayoutResult(FormeTextBounds.Empty, FormeTextBounds.Empty, [], []);
+    public static TextLayoutResult Empty { get; } = new TextLayoutResult(FormeTextBounds.Empty, FormeTextBounds.Empty, [], [], []);
 
     /// <summary>
     /// Gets the overall logical bounds of the laid-out text in pixels.
@@ -32,15 +32,26 @@ public sealed class TextLayoutResult
     public IReadOnlyList<TextLayoutLine> Lines { get; }
 
     /// <summary>
+    /// Gets the laid-out style runs in display order.
+    /// </summary>
+    public IReadOnlyList<TextLayoutRun> Runs { get; }
+
+    /// <summary>
     /// Gets the laid-out glyph placements in display order.
     /// </summary>
     public IReadOnlyList<GlyphPlacement> Glyphs { get; }
 
-    internal TextLayoutResult(FormeTextBounds logicalBounds, FormeTextBounds visualBounds, IReadOnlyList<TextLayoutLine> lines, IReadOnlyList<GlyphPlacement> glyphs)
+    internal TextLayoutResult(
+        FormeTextBounds logicalBounds,
+        FormeTextBounds visualBounds,
+        IReadOnlyList<TextLayoutLine> lines,
+        IReadOnlyList<TextLayoutRun> runs,
+        IReadOnlyList<GlyphPlacement> glyphs)
     {
         LogicalBounds = logicalBounds;
         VisualBounds = visualBounds;
         Lines = lines;
+        Runs = runs;
         Glyphs = glyphs;
     }
 }
