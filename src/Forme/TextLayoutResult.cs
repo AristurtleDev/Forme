@@ -139,6 +139,54 @@ public sealed class TextLayoutResult
         return false;
     }
 
+    /// <summary>
+    /// Tries to find the line owning the given glyph index.
+    /// </summary>
+    /// <param name="glyphIndex">The zero-based glyph index to look up.</param>
+    /// <param name="lineIndex">
+    /// When this method returns <see langword="true"/>, contains the matching line index within
+    /// <see cref="Lines"/>.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when <paramref name="glyphIndex"/> is within range; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetLineIndexFromGlyphIndex(int glyphIndex, out int lineIndex)
+    {
+        if ((uint)glyphIndex < (uint)Glyphs.Count)
+        {
+            lineIndex = Glyphs[glyphIndex].LineIndex;
+            return true;
+        }
+
+        lineIndex = -1;
+        return false;
+    }
+
+    /// <summary>
+    /// Tries to find the run owning the given glyph index.
+    /// </summary>
+    /// <param name="glyphIndex">The zero-based glyph index to look up.</param>
+    /// <param name="runIndex">
+    /// When this method returns <see langword="true"/>, contains the matching run index within
+    /// <see cref="Runs"/>.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when <paramref name="glyphIndex"/> is within range; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetRunIndexFromGlyphIndex(int glyphIndex, out int runIndex)
+    {
+        if ((uint)glyphIndex < (uint)Glyphs.Count)
+        {
+            runIndex = Glyphs[glyphIndex].RunIndex;
+            return true;
+        }
+
+        runIndex = -1;
+        return false;
+    }
+
     private static bool ContainsTextIndex(int start, int length, int textIndex)
     {
         return length > 0 && textIndex >= start && textIndex < start + length;

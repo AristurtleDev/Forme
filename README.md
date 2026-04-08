@@ -128,7 +128,8 @@ It also reports the owning line and run index within the layout result.
 Each glyph includes both logical bounds and visual bounds.
 
 `TextLayoutResult` also provides helper methods to query the owning line, run, or glyph index for
-UTF-16 source positions that fall within laid-out source ranges.
+UTF-16 source positions that fall within laid-out source ranges, and to query owning line/run
+indices for glyph indices.
 
 Query baseline-relative font metrics in pixel space:
 

@@ -474,6 +474,28 @@ public class FontProcessorTests
     }
 
     [Fact]
+    public void LayoutText_CanQueryLineAndRunByGlyphIndex()
+    {
+        byte[] ttf = LoadTestFont();
+        FormeFont font = FormeFont.FromTtf(ttf, CharacterSet.Ascii);
+        TextLayoutResult result = font.LayoutText("AB\nCD".AsSpan(), 28f);
+
+        Assert.True(result.TryGetLineIndexFromGlyphIndex(0, out int lineIndex0));
+        Assert.Equal(0, lineIndex0);
+        Assert.True(result.TryGetLineIndexFromGlyphIndex(2, out int lineIndex2));
+        Assert.Equal(1, lineIndex2);
+        Assert.False(result.TryGetLineIndexFromGlyphIndex(-1, out _));
+        Assert.False(result.TryGetLineIndexFromGlyphIndex(10, out _));
+
+        Assert.True(result.TryGetRunIndexFromGlyphIndex(0, out int runIndex0));
+        Assert.Equal(0, runIndex0);
+        Assert.True(result.TryGetRunIndexFromGlyphIndex(3, out int runIndex3));
+        Assert.Equal(0, runIndex3);
+        Assert.False(result.TryGetRunIndexFromGlyphIndex(-1, out _));
+        Assert.False(result.TryGetRunIndexFromGlyphIndex(10, out _));
+    }
+
+    [Fact]
     public void LayoutText_RightAlignedLine_ReportsShiftedLogicalBounds()
     {
         byte[] ttf = LoadTestFont();
