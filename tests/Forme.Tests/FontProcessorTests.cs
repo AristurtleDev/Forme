@@ -496,6 +496,33 @@ public class FontProcessorTests
     }
 
     [Fact]
+    public void LayoutText_CanQueryLineByY()
+    {
+        byte[] ttf = LoadTestFont();
+        FormeFont font = FormeFont.FromTtf(ttf, CharacterSet.Ascii);
+        TextLayoutOptions options = new TextLayoutOptions
+        {
+            LineSpacing = 10f
+        };
+        TextLayoutResult result = font.LayoutText("A\nA".AsSpan(), 28f, in options);
+
+        TextLayoutLine line0 = result.Lines[0];
+        TextLayoutLine line1 = result.Lines[1];
+        float line0MidY = (line0.LogicalBounds.Y + line0.LogicalBounds.Y2) * 0.5f;
+        float line1MidY = (line1.LogicalBounds.Y + line1.LogicalBounds.Y2) * 0.5f;
+        float gapY = (line0.LogicalBounds.Y2 + line1.LogicalBounds.Y) * 0.5f;
+
+        Assert.True(result.TryGetLineIndexFromY(line0MidY, out int lineIndex0));
+        Assert.Equal(0, lineIndex0);
+        Assert.True(result.TryGetLineIndexFromY(line1MidY, out int lineIndex1));
+        Assert.Equal(1, lineIndex1);
+        Assert.False(result.TryGetLineIndexFromY(gapY, out _));
+        Assert.Equal(0, result.GetNearestLineIndexFromY(line0.LogicalBounds.Y - 5f));
+        Assert.Equal(0, result.GetNearestLineIndexFromY(gapY));
+        Assert.Equal(1, result.GetNearestLineIndexFromY(line1.LogicalBounds.Y2 + 5f));
+    }
+
+    [Fact]
     public void LayoutText_RangesExposeEndPropertiesAndContainment()
     {
         byte[] ttf = LoadTestFont();

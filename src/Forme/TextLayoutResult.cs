@@ -140,6 +140,64 @@ public sealed class TextLayoutResult
     }
 
     /// <summary>
+    /// Tries to find the line whose logical bounds contain the given Y position.
+    /// </summary>
+    /// <param name="y">The Y position, relative to the layout origin.</param>
+    /// <param name="lineIndex">
+    /// When this method returns <see langword="true"/>, contains the matching line index within
+    /// <see cref="Lines"/>.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the position falls within a line's logical bounds; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetLineIndexFromY(float y, out int lineIndex)
+    {
+        for (int i = 0; i < Lines.Count; i++)
+        {
+            TextLayoutLine line = Lines[i];
+            if (y >= line.LogicalBounds.Y && y < line.LogicalBounds.Y2)
+            {
+                lineIndex = i;
+                return true;
+            }
+        }
+
+        lineIndex = -1;
+        return false;
+    }
+
+    /// <summary>
+    /// Returns the nearest line index for the given Y position.
+    /// </summary>
+    /// <param name="y">The Y position, relative to the layout origin.</param>
+    /// <returns>
+    /// The nearest line index, or <c>-1</c> when the layout contains no lines.
+    /// </returns>
+    public int GetNearestLineIndexFromY(float y)
+    {
+        if (Lines.Count == 0)
+        {
+            return -1;
+        }
+
+        int bestIndex = 0;
+        float bestDistance = DistanceToLineY(Lines[0], y);
+
+        for (int i = 1; i < Lines.Count; i++)
+        {
+            float distance = DistanceToLineY(Lines[i], y);
+            if (distance < bestDistance)
+            {
+                bestDistance = distance;
+                bestIndex = i;
+            }
+        }
+
+        return bestIndex;
+    }
+
+    /// <summary>
     /// Tries to find the line owning the given glyph index.
     /// </summary>
     /// <param name="glyphIndex">The zero-based glyph index to look up.</param>
@@ -185,5 +243,20 @@ public sealed class TextLayoutResult
 
         runIndex = -1;
         return false;
+    }
+
+    private static float DistanceToLineY(TextLayoutLine line, float y)
+    {
+        if (y < line.LogicalBounds.Y)
+        {
+            return line.LogicalBounds.Y - y;
+        }
+
+        if (y >= line.LogicalBounds.Y2)
+        {
+            return y - line.LogicalBounds.Y2;
+        }
+
+        return 0f;
     }
 }
