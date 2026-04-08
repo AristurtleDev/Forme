@@ -496,7 +496,7 @@ public sealed class FormeFont
             : FormeTextBounds.Empty;
         List<TextLayoutRun> runs =
         [
-            new TextLayoutRun(0, text.Length, 0, placements.Count)
+            new TextLayoutRun(this, sizePixels, 0, text.Length, 0, placements.Count)
         ];
 
         return new TextLayoutResult(logicalBounds, visualBoundsResult, lines, runs, placements);

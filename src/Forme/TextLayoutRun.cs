@@ -15,6 +15,16 @@ namespace Forme;
 public readonly struct TextLayoutRun
 {
     /// <summary>
+    /// Gets the font used for this run.
+    /// </summary>
+    public FormeFont Font { get; }
+
+    /// <summary>
+    /// Gets the em-square height used for this run in pixels.
+    /// </summary>
+    public float SizePixels { get; }
+
+    /// <summary>
     /// Gets the zero-based UTF-16 start index of this run within the source text.
     /// </summary>
     public int TextStart { get; }
@@ -37,8 +47,10 @@ public readonly struct TextLayoutRun
     /// <summary>
     /// Initializes a new <see cref="TextLayoutRun"/> with the given values.
     /// </summary>
-    public TextLayoutRun(int textStart, int textLength, int glyphStart, int glyphCount)
+    public TextLayoutRun(FormeFont font, float sizePixels, int textStart, int textLength, int glyphStart, int glyphCount)
     {
+        Font = font;
+        SizePixels = sizePixels;
         TextStart = textStart;
         TextLength = textLength;
         GlyphStart = glyphStart;

@@ -120,7 +120,8 @@ Each `TextLayoutLine` in `layout.Lines` includes baseline Y, line height, ascent
 logical bounds, visual bounds, and the glyph range for that line.
 
 `layout.Runs` exposes source-text and glyph-range mapping for style runs. The current single-font
-layout path produces one run spanning the whole request.
+layout path produces one run spanning the whole request, and that run reports the `FormeFont`
+instance and `SizePixels` used for layout.
 
 Query baseline-relative font metrics in pixel space:
 

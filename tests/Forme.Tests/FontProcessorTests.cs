@@ -355,12 +355,15 @@ public class FontProcessorTests
         byte[] ttf = LoadTestFont();
         FormeFont font = FormeFont.FromTtf(ttf, CharacterSet.Ascii);
         string text = "Line one\nLine two";
+        float sizePixels = 28f;
 
-        TextLayoutResult result = font.LayoutText(text.AsSpan(), 28f);
+        TextLayoutResult result = font.LayoutText(text.AsSpan(), sizePixels);
 
         Assert.Single(result.Runs);
 
         TextLayoutRun run = result.Runs[0];
+        Assert.Same(font, run.Font);
+        Assert.Equal(sizePixels, run.SizePixels);
         Assert.Equal(0, run.TextStart);
         Assert.Equal(text.Length, run.TextLength);
         Assert.Equal(0, run.GlyphStart);
