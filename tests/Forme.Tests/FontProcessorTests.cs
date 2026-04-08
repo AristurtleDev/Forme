@@ -393,6 +393,8 @@ public class FontProcessorTests
         Assert.Equal(text.Length, run.TextLength);
         Assert.Equal(0, run.GlyphStart);
         Assert.Equal(result.Glyphs.Count, run.GlyphCount);
+        Assert.Equal(result.LogicalBounds, run.LogicalBounds);
+        Assert.Equal(result.VisualBounds, run.VisualBounds);
         Assert.Equal(0, run.LineStart);
         Assert.Equal(result.Lines.Count, run.LineCount);
     }

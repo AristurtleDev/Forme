@@ -121,7 +121,7 @@ logical bounds, visual bounds, the source-text range, and the glyph range for th
 
 `layout.Runs` exposes source-text and glyph-range mapping for style runs. The current single-font
 layout path produces one run spanning the whole request, and that run reports the `FormeFont`
-instance, `SizePixels`, and touched line range used for layout.
+instance, `SizePixels`, logical bounds, visual bounds, and touched line range used for layout.
 
 Each `GlyphPlacement` also reports its UTF-16 source index and source-text length.
 

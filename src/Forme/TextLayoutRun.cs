@@ -45,6 +45,16 @@ public readonly struct TextLayoutRun
     public int GlyphCount { get; }
 
     /// <summary>
+    /// Gets the logical bounds of this run in pixels, relative to the layout origin.
+    /// </summary>
+    public FormeTextBounds LogicalBounds { get; }
+
+    /// <summary>
+    /// Gets the visual bounds of this run in pixels, relative to the layout origin.
+    /// </summary>
+    public FormeTextBounds VisualBounds { get; }
+
+    /// <summary>
     /// Gets the index of the first line touched by this run within <see cref="TextLayoutResult.Lines"/>.
     /// </summary>
     public int LineStart { get; }
@@ -64,6 +74,8 @@ public readonly struct TextLayoutRun
         int textLength,
         int glyphStart,
         int glyphCount,
+        FormeTextBounds logicalBounds,
+        FormeTextBounds visualBounds,
         int lineStart,
         int lineCount)
     {
@@ -73,6 +85,8 @@ public readonly struct TextLayoutRun
         TextLength = textLength;
         GlyphStart = glyphStart;
         GlyphCount = glyphCount;
+        LogicalBounds = logicalBounds;
+        VisualBounds = visualBounds;
         LineStart = lineStart;
         LineCount = lineCount;
     }

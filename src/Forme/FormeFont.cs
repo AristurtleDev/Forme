@@ -500,7 +500,7 @@ public sealed class FormeFont
             : FormeTextBounds.Empty;
         List<TextLayoutRun> runs =
         [
-            new TextLayoutRun(this, sizePixels, 0, text.Length, 0, placements.Count, 0, lines.Count)
+            new TextLayoutRun(this, sizePixels, 0, text.Length, 0, placements.Count, logicalBounds, visualBoundsResult, 0, lines.Count)
         ];
 
         return new TextLayoutResult(logicalBounds, visualBoundsResult, lines, runs, placements);
