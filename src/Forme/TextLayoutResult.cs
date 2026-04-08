@@ -169,6 +169,37 @@ public sealed class TextLayoutResult
     }
 
     /// <summary>
+    /// Returns the nearest glyph index for the given point.
+    /// </summary>
+    /// <param name="x">The X position, relative to the layout origin.</param>
+    /// <param name="y">The Y position, relative to the layout origin.</param>
+    /// <returns>
+    /// The nearest glyph index, or <c>-1</c> when the layout contains no glyphs.
+    /// </returns>
+    public int GetNearestGlyphIndexFromPoint(float x, float y)
+    {
+        if (Glyphs.Count == 0)
+        {
+            return -1;
+        }
+
+        int bestIndex = 0;
+        float bestDistance = Glyphs[0].LogicalBounds.DistanceSquaredTo(x, y);
+
+        for (int i = 1; i < Glyphs.Count; i++)
+        {
+            float distance = Glyphs[i].LogicalBounds.DistanceSquaredTo(x, y);
+            if (distance < bestDistance)
+            {
+                bestDistance = distance;
+                bestIndex = i;
+            }
+        }
+
+        return bestIndex;
+    }
+
+    /// <summary>
     /// Tries to find the line whose logical bounds contain the given Y position.
     /// </summary>
     /// <param name="y">The Y position, relative to the layout origin.</param>

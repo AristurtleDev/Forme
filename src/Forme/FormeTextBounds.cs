@@ -65,6 +65,40 @@ public readonly struct FormeTextBounds
     }
 
     /// <summary>
+    /// Returns the squared distance from the given point to this rectangle.
+    /// </summary>
+    /// <param name="x">The X position to test.</param>
+    /// <param name="y">The Y position to test.</param>
+    /// <returns>
+    /// Zero when the point lies within the rectangle; otherwise, the squared distance to the
+    /// rectangle's nearest edge or corner.
+    /// </returns>
+    public float DistanceSquaredTo(float x, float y)
+    {
+        float dx = 0f;
+        if (x < X)
+        {
+            dx = X - x;
+        }
+        else if (x >= X2)
+        {
+            dx = x - X2;
+        }
+
+        float dy = 0f;
+        if (y < Y)
+        {
+            dy = Y - y;
+        }
+        else if (y >= Y2)
+        {
+            dy = y - Y2;
+        }
+
+        return dx * dx + dy * dy;
+    }
+
+    /// <summary>
     /// Initializes a new <see cref="FormeTextBounds"/> with the given edges.
     /// </summary>
     /// <param name="x">Left edge in pixels.</param>

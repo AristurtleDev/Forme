@@ -495,6 +495,27 @@ public class FontProcessorTests
     }
 
     [Fact]
+    public void LayoutText_CanQueryNearestGlyphByPoint()
+    {
+        byte[] ttf = LoadTestFont();
+        FormeFont font = FormeFont.FromTtf(ttf, CharacterSet.Ascii);
+        TextLayoutOptions options = new TextLayoutOptions
+        {
+            LineSpacing = 10f
+        };
+        TextLayoutResult result = font.LayoutText("AB\nCD".AsSpan(), 28f, in options);
+
+        GlyphPlacement glyph0 = result.Glyphs[0];
+        GlyphPlacement glyph2 = result.Glyphs[2];
+        float nearLine0GapY = result.Lines[0].LogicalBounds.Y2 + 1f;
+        float nearLine1GapY = result.Lines[1].LogicalBounds.Y - 1f;
+
+        Assert.Equal(0, result.GetNearestGlyphIndexFromPoint(glyph0.BaselineX, nearLine0GapY));
+        Assert.Equal(2, result.GetNearestGlyphIndexFromPoint(glyph2.BaselineX, nearLine1GapY));
+        Assert.Equal(0, result.GetNearestGlyphIndexFromPoint(glyph0.LogicalBounds.X - 20f, glyph0.BaselineY));
+    }
+
+    [Fact]
     public void LayoutText_CanQueryLineAndRunByGlyphIndex()
     {
         byte[] ttf = LoadTestFont();
@@ -514,6 +535,16 @@ public class FontProcessorTests
         Assert.Equal(0, runIndex3);
         Assert.False(result.TryGetRunIndexFromGlyphIndex(-1, out _));
         Assert.False(result.TryGetRunIndexFromGlyphIndex(10, out _));
+    }
+
+    [Fact]
+    public void FormeTextBounds_DistanceSquaredTo_ReturnsExpectedValues()
+    {
+        FormeTextBounds bounds = new FormeTextBounds(10f, 20f, 30f, 40f);
+
+        Assert.Equal(0f, bounds.DistanceSquaredTo(15f, 25f));
+        Assert.Equal(25f, bounds.DistanceSquaredTo(5f, 25f));
+        Assert.Equal(200f, bounds.DistanceSquaredTo(0f, 10f));
     }
 
     [Fact]
