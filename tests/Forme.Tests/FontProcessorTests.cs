@@ -516,6 +516,55 @@ public class FontProcessorTests
     }
 
     [Fact]
+    public void LayoutText_CanQueryCaretByTextIndex()
+    {
+        byte[] ttf = LoadTestFont();
+        FormeFont font = FormeFont.FromTtf(ttf, CharacterSet.Ascii);
+        TextLayoutResult result = font.LayoutText("AB\nCD".AsSpan(), 28f);
+
+        Assert.True(result.TryGetCaretFromTextIndex(0, out TextCaret caret0));
+        Assert.Equal(0, caret0.LineIndex);
+        Assert.Equal(result.Glyphs[0].BaselineX, caret0.X);
+        Assert.Equal(result.Lines[0].LogicalBounds.Y, caret0.Top);
+        Assert.Equal(result.Lines[0].LogicalBounds.Y2, caret0.Bottom);
+
+        Assert.True(result.TryGetCaretFromTextIndex(1, out TextCaret caret1));
+        Assert.Equal(0, caret1.LineIndex);
+        Assert.Equal(result.Glyphs[0].LogicalBounds.X2, caret1.X);
+
+        Assert.True(result.TryGetCaretFromTextIndex(2, out TextCaret caretNewline));
+        Assert.Equal(0, caretNewline.LineIndex);
+        Assert.Equal(result.Lines[0].LogicalBounds.X2, caretNewline.X);
+
+        Assert.True(result.TryGetCaretFromTextIndex(3, out TextCaret caret3));
+        Assert.Equal(1, caret3.LineIndex);
+        Assert.Equal(result.Glyphs[2].BaselineX, caret3.X);
+
+        Assert.True(result.TryGetCaretFromTextIndex(5, out TextCaret caretEnd));
+        Assert.Equal(1, caretEnd.LineIndex);
+        Assert.Equal(result.Lines[1].LogicalBounds.X2, caretEnd.X);
+
+        Assert.False(result.TryGetCaretFromTextIndex(-1, out _));
+        Assert.False(result.TryGetCaretFromTextIndex(6, out _));
+    }
+
+    [Fact]
+    public void LayoutText_CaretQuery_HandlesEmptyLines()
+    {
+        byte[] ttf = LoadTestFont();
+        FormeFont font = FormeFont.FromTtf(ttf, CharacterSet.Ascii);
+        TextLayoutResult result = font.LayoutText("A\n\nB".AsSpan(), 28f);
+
+        Assert.Equal(3, result.Lines.Count);
+
+        Assert.True(result.TryGetCaretFromTextIndex(2, out TextCaret emptyLineCaret));
+        Assert.Equal(1, emptyLineCaret.LineIndex);
+        Assert.Equal(result.Lines[1].LogicalBounds.X, emptyLineCaret.X);
+        Assert.Equal(result.Lines[1].LogicalBounds.Y, emptyLineCaret.Top);
+        Assert.Equal(result.Lines[1].LogicalBounds.Y2, emptyLineCaret.Bottom);
+    }
+
+    [Fact]
     public void LayoutText_CanQueryLineAndRunByGlyphIndex()
     {
         byte[] ttf = LoadTestFont();

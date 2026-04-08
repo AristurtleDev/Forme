@@ -132,6 +132,8 @@ UTF-16 source positions that fall within laid-out source ranges, and to query ow
 indices for glyph indices.
 It also provides line lookup by Y position and exact/nearest glyph lookup by point for
 geometry-driven consumers.
+It can also resolve a UTF-16 text index to caret geometry, including line-end and end-of-text
+positions.
 Lines, runs, and glyphs also expose end indices and `ContainsTextIndex(...)` helpers for their
 source-text ranges.
 

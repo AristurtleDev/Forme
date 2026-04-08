@@ -140,6 +140,38 @@ public sealed class TextLayoutResult
     }
 
     /// <summary>
+    /// Tries to resolve a caret position for the given UTF-16 text index.
+    /// </summary>
+    /// <param name="textIndex">The zero-based UTF-16 insertion index to look up.</param>
+    /// <param name="caret">
+    /// When this method returns <see langword="true"/>, contains the resolved caret geometry.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when <paramref name="textIndex"/> falls within the laid-out source
+    /// text, including line ends and the overall end of the text; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetCaretFromTextIndex(int textIndex, out TextCaret caret)
+    {
+        if (textIndex < 0 || textIndex > GetTextLength())
+        {
+            caret = default;
+            return false;
+        }
+
+        if (!TryGetCaretLine(textIndex, out int lineIndex))
+        {
+            caret = default;
+            return false;
+        }
+
+        TextLayoutLine line = Lines[lineIndex];
+        float x = GetCaretXForLine(line, textIndex);
+        caret = new TextCaret(textIndex, lineIndex, x, line.BaselineY, line.LogicalBounds.Y, line.LogicalBounds.Y2);
+        return true;
+    }
+
+    /// <summary>
     /// Tries to find the glyph whose logical bounds contain the given point.
     /// </summary>
     /// <param name="x">The X position, relative to the layout origin.</param>
@@ -303,6 +335,76 @@ public sealed class TextLayoutResult
 
         runIndex = -1;
         return false;
+    }
+
+    private int GetTextLength()
+    {
+        if (Runs.Count > 0)
+        {
+            return Runs[Runs.Count - 1].TextEnd;
+        }
+
+        if (Lines.Count > 0)
+        {
+            return Lines[Lines.Count - 1].TextEnd;
+        }
+
+        return 0;
+    }
+
+    private bool TryGetCaretLine(int textIndex, out int lineIndex)
+    {
+        for (int i = 0; i < Lines.Count; i++)
+        {
+            TextLayoutLine line = Lines[i];
+            if (textIndex >= line.TextStart && textIndex <= line.TextEnd)
+            {
+                lineIndex = i;
+                return true;
+            }
+        }
+
+        lineIndex = -1;
+        return false;
+    }
+
+    private float GetCaretXForLine(TextLayoutLine line, int textIndex)
+    {
+        if (line.GlyphCount == 0)
+        {
+            return line.LogicalBounds.X;
+        }
+
+        for (int i = line.GlyphStart; i < line.GlyphEnd; i++)
+        {
+            GlyphPlacement glyph = Glyphs[i];
+            if (textIndex <= glyph.Index)
+            {
+                return glyph.BaselineX;
+            }
+
+            if (textIndex < glyph.TextEnd)
+            {
+                return GetCaretXWithinGlyph(glyph, textIndex);
+            }
+
+            if (textIndex == glyph.TextEnd)
+            {
+                return glyph.LogicalBounds.X2;
+            }
+        }
+
+        return line.LogicalBounds.X2;
+    }
+
+    private static float GetCaretXWithinGlyph(GlyphPlacement glyph, int textIndex)
+    {
+        int distanceToLeadingEdge = textIndex - glyph.Index;
+        int distanceToTrailingEdge = glyph.TextEnd - textIndex;
+
+        return distanceToLeadingEdge < distanceToTrailingEdge
+            ? glyph.BaselineX
+            : glyph.LogicalBounds.X2;
     }
 
     private static float DistanceToLineY(TextLayoutLine line, float y)
