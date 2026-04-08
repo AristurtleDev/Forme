@@ -24,6 +24,11 @@ public readonly struct TextLayoutLine
     public int TextLength { get; }
 
     /// <summary>
+    /// Gets the exclusive UTF-16 end index of the source text represented by this line.
+    /// </summary>
+    public int TextEnd => TextStart + TextLength;
+
+    /// <summary>
     /// Gets the baseline Y position of this line, relative to the layout origin.
     /// </summary>
     public float BaselineY { get; }
@@ -71,6 +76,11 @@ public readonly struct TextLayoutLine
     public int GlyphCount { get; }
 
     /// <summary>
+    /// Gets the exclusive end glyph index for this line within <see cref="TextLayoutResult.Glyphs"/>.
+    /// </summary>
+    public int GlyphEnd => GlyphStart + GlyphCount;
+
+    /// <summary>
     /// Gets the index of the first run touching this line within <see cref="TextLayoutResult.Runs"/>.
     /// </summary>
     public int RunStart { get; }
@@ -79,6 +89,19 @@ public readonly struct TextLayoutLine
     /// Gets the number of runs touching this line.
     /// </summary>
     public int RunCount { get; }
+
+    /// <summary>
+    /// Gets the exclusive end run index for this line within <see cref="TextLayoutResult.Runs"/>.
+    /// </summary>
+    public int RunEnd => RunStart + RunCount;
+
+    /// <summary>
+    /// Returns whether the given UTF-16 text index falls within this line's source-text range.
+    /// </summary>
+    public bool ContainsTextIndex(int textIndex)
+    {
+        return TextLength > 0 && textIndex >= TextStart && textIndex < TextEnd;
+    }
 
     /// <summary>
     /// Initializes a new <see cref="TextLayoutLine"/> with the given values.

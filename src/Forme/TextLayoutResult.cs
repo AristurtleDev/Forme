@@ -72,7 +72,7 @@ public sealed class TextLayoutResult
         for (int i = 0; i < Lines.Count; i++)
         {
             TextLayoutLine line = Lines[i];
-            if (ContainsTextIndex(line.TextStart, line.TextLength, textIndex))
+            if (line.ContainsTextIndex(textIndex))
             {
                 lineIndex = i;
                 return true;
@@ -100,7 +100,7 @@ public sealed class TextLayoutResult
         for (int i = 0; i < Runs.Count; i++)
         {
             TextLayoutRun run = Runs[i];
-            if (ContainsTextIndex(run.TextStart, run.TextLength, textIndex))
+            if (run.ContainsTextIndex(textIndex))
             {
                 runIndex = i;
                 return true;
@@ -128,7 +128,7 @@ public sealed class TextLayoutResult
         for (int i = 0; i < Glyphs.Count; i++)
         {
             GlyphPlacement glyph = Glyphs[i];
-            if (ContainsTextIndex(glyph.Index, glyph.TextLength, textIndex))
+            if (glyph.ContainsTextIndex(textIndex))
             {
                 glyphIndex = i;
                 return true;
@@ -185,10 +185,5 @@ public sealed class TextLayoutResult
 
         runIndex = -1;
         return false;
-    }
-
-    private static bool ContainsTextIndex(int start, int length, int textIndex)
-    {
-        return length > 0 && textIndex >= start && textIndex < start + length;
     }
 }

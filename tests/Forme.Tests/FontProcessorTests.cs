@@ -496,6 +496,34 @@ public class FontProcessorTests
     }
 
     [Fact]
+    public void LayoutText_RangesExposeEndPropertiesAndContainment()
+    {
+        byte[] ttf = LoadTestFont();
+        FormeFont font = FormeFont.FromTtf(ttf, CharacterSet.Ascii);
+        TextLayoutResult result = font.LayoutText("AB\nCD".AsSpan(), 28f);
+
+        TextLayoutLine line0 = result.Lines[0];
+        TextLayoutRun run0 = result.Runs[0];
+        GlyphPlacement glyph0 = result.Glyphs[0];
+
+        Assert.Equal(line0.TextStart + line0.TextLength, line0.TextEnd);
+        Assert.Equal(line0.GlyphStart + line0.GlyphCount, line0.GlyphEnd);
+        Assert.Equal(line0.RunStart + line0.RunCount, line0.RunEnd);
+        Assert.True(line0.ContainsTextIndex(0));
+        Assert.False(line0.ContainsTextIndex(2));
+
+        Assert.Equal(run0.TextStart + run0.TextLength, run0.TextEnd);
+        Assert.Equal(run0.GlyphStart + run0.GlyphCount, run0.GlyphEnd);
+        Assert.Equal(run0.LineStart + run0.LineCount, run0.LineEnd);
+        Assert.True(run0.ContainsTextIndex(3));
+        Assert.False(run0.ContainsTextIndex(5));
+
+        Assert.Equal(glyph0.Index + glyph0.TextLength, glyph0.TextEnd);
+        Assert.True(glyph0.ContainsTextIndex(0));
+        Assert.False(glyph0.ContainsTextIndex(1));
+    }
+
+    [Fact]
     public void LayoutText_RightAlignedLine_ReportsShiftedLogicalBounds()
     {
         byte[] ttf = LoadTestFont();

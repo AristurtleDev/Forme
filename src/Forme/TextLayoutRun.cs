@@ -35,6 +35,11 @@ public readonly struct TextLayoutRun
     public int TextLength { get; }
 
     /// <summary>
+    /// Gets the exclusive UTF-16 end index of this run within the source text.
+    /// </summary>
+    public int TextEnd => TextStart + TextLength;
+
+    /// <summary>
     /// Gets the index of the first glyph in this run within <see cref="TextLayoutResult.Glyphs"/>.
     /// </summary>
     public int GlyphStart { get; }
@@ -43,6 +48,11 @@ public readonly struct TextLayoutRun
     /// Gets the number of glyph placements that belong to this run.
     /// </summary>
     public int GlyphCount { get; }
+
+    /// <summary>
+    /// Gets the exclusive end glyph index for this run within <see cref="TextLayoutResult.Glyphs"/>.
+    /// </summary>
+    public int GlyphEnd => GlyphStart + GlyphCount;
 
     /// <summary>
     /// Gets the logical bounds of this run in pixels, relative to the layout origin.
@@ -63,6 +73,19 @@ public readonly struct TextLayoutRun
     /// Gets the number of lines touched by this run.
     /// </summary>
     public int LineCount { get; }
+
+    /// <summary>
+    /// Gets the exclusive end line index for this run within <see cref="TextLayoutResult.Lines"/>.
+    /// </summary>
+    public int LineEnd => LineStart + LineCount;
+
+    /// <summary>
+    /// Returns whether the given UTF-16 text index falls within this run's source-text range.
+    /// </summary>
+    public bool ContainsTextIndex(int textIndex)
+    {
+        return TextLength > 0 && textIndex >= TextStart && textIndex < TextEnd;
+    }
 
     /// <summary>
     /// Initializes a new <see cref="TextLayoutRun"/> with the given values.

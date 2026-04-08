@@ -27,6 +27,11 @@ public readonly struct GlyphPlacement
     public int TextLength { get; }
 
     /// <summary>
+    /// Gets the exclusive UTF-16 end index of the source text represented by this glyph.
+    /// </summary>
+    public int TextEnd => Index + TextLength;
+
+    /// <summary>
     /// Gets the Unicode code point this glyph represents.
     /// </summary>
     public int CodePoint { get; }
@@ -76,6 +81,14 @@ public readonly struct GlyphPlacement
     /// Gets the pixel advance width of this glyph, including any <see cref="TextLayoutOptions.CharacterSpacing"/>.
     /// </summary>
     public float AdvanceWidth { get; }
+
+    /// <summary>
+    /// Returns whether the given UTF-16 text index falls within this glyph's source-text range.
+    /// </summary>
+    public bool ContainsTextIndex(int textIndex)
+    {
+        return TextLength > 0 && textIndex >= Index && textIndex < TextEnd;
+    }
 
     /// <summary>
     /// Initializes a new <see cref="GlyphPlacement"/> with the given values.
