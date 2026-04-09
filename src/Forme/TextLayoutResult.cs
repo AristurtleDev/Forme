@@ -517,6 +517,92 @@ public sealed class TextLayoutResult
     }
 
     /// <summary>
+    /// Tries to resolve the source-text range of the line nearest the given UTF-16 index.
+    /// </summary>
+    /// <param name="textIndex">The zero-based UTF-16 index to query.</param>
+    /// <param name="lineStart">
+    /// When this method returns <see langword="true"/>, contains the resolved line start.
+    /// </param>
+    /// <param name="lineEnd">
+    /// When this method returns <see langword="true"/>, contains the resolved line end.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when <paramref name="textIndex"/> resolves to a laid-out line,
+    /// including empty lines and line-end insertion positions; otherwise, <see langword="false"/>.
+    /// </returns>
+    public bool TryGetLineRange(int textIndex, out int lineStart, out int lineEnd)
+    {
+        lineStart = textIndex;
+        lineEnd = textIndex;
+
+        if (!TryGetCaretLine(textIndex, out int lineIndex))
+        {
+            return false;
+        }
+
+        TextLayoutLine line = Lines[lineIndex];
+        lineStart = line.TextStart;
+        lineEnd = line.TextEnd;
+        return true;
+    }
+
+    /// <summary>
+    /// Tries to resolve the source-text range of the paragraph nearest the given UTF-16 index.
+    /// </summary>
+    /// <param name="textIndex">The zero-based UTF-16 index to query.</param>
+    /// <param name="paragraphStart">
+    /// When this method returns <see langword="true"/>, contains the resolved paragraph start.
+    /// </param>
+    /// <param name="paragraphEnd">
+    /// When this method returns <see langword="true"/>, contains the resolved paragraph end.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when <paramref name="textIndex"/> resolves to a laid-out
+    /// paragraph, including empty paragraphs and line-end insertion positions; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetParagraphRange(int textIndex, out int paragraphStart, out int paragraphEnd)
+    {
+        paragraphStart = textIndex;
+        paragraphEnd = textIndex;
+
+        if (!TryGetCaretLine(textIndex, out int lineIndex))
+        {
+            return false;
+        }
+
+        int firstLineIndex = lineIndex;
+        while (firstLineIndex > 0)
+        {
+            TextLayoutLine previousLine = Lines[firstLineIndex - 1];
+            TextLayoutLine currentLine = Lines[firstLineIndex];
+            if (HasParagraphBreakBetween(previousLine.TextEnd, currentLine.TextStart))
+            {
+                break;
+            }
+
+            firstLineIndex--;
+        }
+
+        int lastLineIndex = lineIndex;
+        while (lastLineIndex + 1 < Lines.Count)
+        {
+            TextLayoutLine currentLine = Lines[lastLineIndex];
+            TextLayoutLine nextLine = Lines[lastLineIndex + 1];
+            if (HasParagraphBreakBetween(currentLine.TextEnd, nextLine.TextStart))
+            {
+                break;
+            }
+
+            lastLineIndex++;
+        }
+
+        paragraphStart = Lines[firstLineIndex].TextStart;
+        paragraphEnd = Lines[lastLineIndex].TextEnd;
+        return true;
+    }
+
+    /// <summary>
     /// Tries to resolve the nearest caret on the given line for the requested X position.
     /// </summary>
     /// <param name="lineIndex">The zero-based line index to query.</param>
@@ -930,6 +1016,16 @@ public sealed class TextLayoutResult
         {
             throw new ArgumentOutOfRangeException(nameof(textIndex));
         }
+    }
+
+    private bool HasParagraphBreakBetween(int start, int end)
+    {
+        if (end <= start)
+        {
+            return false;
+        }
+
+        return Text.AsSpan(start, end - start).IndexOf('\n') >= 0;
     }
 
     private int FindWordStart(int textIndex)

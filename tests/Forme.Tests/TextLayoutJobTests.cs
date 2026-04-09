@@ -753,6 +753,66 @@ public class TextLayoutJobTests
     }
 
     [Fact]
+    public void TryGetLineRange_ReturnsCurrentLineSourceRange()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("AB\nCD".AsSpan(), 20f);
+
+        Assert.True(result.TryGetLineRange(1, out int lineStart, out int lineEnd));
+
+        Assert.Equal(0, lineStart);
+        Assert.Equal(2, lineEnd);
+    }
+
+    [Fact]
+    public void TryGetParagraphRange_WrappedParagraph_SpansWrappedLines()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutOptions options = new TextLayoutOptions
+        {
+            MaxWidth = 45f
+        };
+        TextLayoutResult result = font.LayoutText("Wrap here".AsSpan(), 20f, in options);
+
+        Assert.True(result.Lines.Count > 1);
+        Assert.True(result.TryGetParagraphRange(result.Lines[1].TextStart, out int paragraphStart, out int paragraphEnd));
+
+        Assert.Equal(0, paragraphStart);
+        Assert.Equal("Wrap here".Length, paragraphEnd);
+    }
+
+    [Fact]
+    public void TryGetParagraphRange_StopsAtParagraphBreak()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutOptions options = new TextLayoutOptions
+        {
+            MaxWidth = 45f
+        };
+        TextLayoutResult result = font.LayoutText("Wrap here\nNext bit".AsSpan(), 20f, in options);
+
+        Assert.True(result.TryGetParagraphRange(0, out int firstParagraphStart, out int firstParagraphEnd));
+        Assert.True(result.TryGetParagraphRange(result.Text.IndexOf('N'), out int secondParagraphStart, out int secondParagraphEnd));
+
+        Assert.Equal(0, firstParagraphStart);
+        Assert.Equal("Wrap here".Length, firstParagraphEnd);
+        Assert.Equal("Wrap here\n".Length, secondParagraphStart);
+        Assert.Equal(result.Text.Length, secondParagraphEnd);
+    }
+
+    [Fact]
+    public void TryGetParagraphRange_EmptyParagraph_ReturnsEmptyRange()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("A\n\nB".AsSpan(), 20f);
+
+        Assert.True(result.TryGetParagraphRange(2, out int paragraphStart, out int paragraphEnd));
+
+        Assert.Equal(2, paragraphStart);
+        Assert.Equal(2, paragraphEnd);
+    }
+
+    [Fact]
     public void TryGetAdjacentLineCaret_UsesCurrentCaretXByDefault()
     {
         FormeFont font = LoadTestFont();
