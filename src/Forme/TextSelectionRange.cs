@@ -57,4 +57,22 @@ public readonly struct TextSelectionRange
     {
         return new TextSelectionRange(AnchorTextIndex, focusTextIndex);
     }
+
+    /// <summary>
+    /// Returns an empty selection range collapsed to this range's anchor.
+    /// </summary>
+    /// <returns>The collapsed selection range.</returns>
+    public TextSelectionRange CollapseToAnchor()
+    {
+        return new TextSelectionRange(AnchorTextIndex, AnchorTextIndex);
+    }
+
+    /// <summary>
+    /// Returns an empty selection range collapsed to this range's focus.
+    /// </summary>
+    /// <returns>The collapsed selection range.</returns>
+    public TextSelectionRange CollapseToFocus()
+    {
+        return new TextSelectionRange(FocusTextIndex, FocusTextIndex);
+    }
 }

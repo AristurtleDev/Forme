@@ -1091,6 +1091,41 @@ public class TextLayoutJobTests
     }
 
     [Fact]
+    public void TextSelectionRange_CollapseHelpers_ReturnEmptySelectionsAtEndpoints()
+    {
+        TextSelectionRange selection = new TextSelectionRange(5, 2);
+
+        TextSelectionRange collapsedToAnchor = selection.CollapseToAnchor();
+        TextSelectionRange collapsedToFocus = selection.CollapseToFocus();
+
+        Assert.True(collapsedToAnchor.IsEmpty);
+        Assert.Equal(5, collapsedToAnchor.AnchorTextIndex);
+        Assert.Equal(5, collapsedToAnchor.FocusTextIndex);
+        Assert.True(collapsedToFocus.IsEmpty);
+        Assert.Equal(2, collapsedToFocus.AnchorTextIndex);
+        Assert.Equal(2, collapsedToFocus.FocusTextIndex);
+    }
+
+    [Fact]
+    public void TryGetSelectionCarets_PreserveAnchorAndFocusOrder()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("AB\nCD".AsSpan(), 20f);
+        TextSelectionRange selection = new TextSelectionRange(3, 0);
+
+        Assert.True(result.TryGetSelectionAnchorCaret(selection, out TextCaret anchorCaret));
+        Assert.True(result.TryGetSelectionFocusCaret(selection, out TextCaret focusCaret));
+        Assert.True(result.TryGetSelectionCarets(selection, out TextCaret combinedAnchorCaret, out TextCaret combinedFocusCaret));
+
+        Assert.Equal(3, anchorCaret.TextIndex);
+        Assert.Equal(1, anchorCaret.LineIndex);
+        Assert.Equal(0, focusCaret.TextIndex);
+        Assert.Equal(0, focusCaret.LineIndex);
+        Assert.Equal(anchorCaret.TextIndex, combinedAnchorCaret.TextIndex);
+        Assert.Equal(focusCaret.TextIndex, combinedFocusCaret.TextIndex);
+    }
+
+    [Fact]
     public void TryGetAdjacentLineCaret_UsesCurrentCaretXByDefault()
     {
         FormeFont font = LoadTestFont();

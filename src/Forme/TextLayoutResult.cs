@@ -885,6 +885,66 @@ public sealed class TextLayoutResult
     }
 
     /// <summary>
+    /// Tries to resolve the caret at the anchor end of the given selection.
+    /// </summary>
+    /// <param name="selection">The selection range to query.</param>
+    /// <param name="caret">
+    /// When this method returns <see langword="true"/>, contains the resolved anchor caret.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the anchor resolves to a valid caret; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetSelectionAnchorCaret(TextSelectionRange selection, out TextCaret caret)
+    {
+        return TryGetCaretFromTextIndex(selection.AnchorTextIndex, out caret);
+    }
+
+    /// <summary>
+    /// Tries to resolve the caret at the focus end of the given selection.
+    /// </summary>
+    /// <param name="selection">The selection range to query.</param>
+    /// <param name="caret">
+    /// When this method returns <see langword="true"/>, contains the resolved focus caret.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the focus resolves to a valid caret; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetSelectionFocusCaret(TextSelectionRange selection, out TextCaret caret)
+    {
+        return TryGetCaretFromTextIndex(selection.FocusTextIndex, out caret);
+    }
+
+    /// <summary>
+    /// Tries to resolve both endpoint carets of the given selection while preserving anchor and
+    /// focus order.
+    /// </summary>
+    /// <param name="selection">The selection range to query.</param>
+    /// <param name="anchorCaret">
+    /// When this method returns <see langword="true"/>, contains the resolved anchor caret.
+    /// </param>
+    /// <param name="focusCaret">
+    /// When this method returns <see langword="true"/>, contains the resolved focus caret.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when both endpoints resolve to valid carets; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetSelectionCarets(TextSelectionRange selection, out TextCaret anchorCaret, out TextCaret focusCaret)
+    {
+        if (!TryGetSelectionAnchorCaret(selection, out anchorCaret)
+            || !TryGetSelectionFocusCaret(selection, out focusCaret))
+        {
+            anchorCaret = default;
+            focusCaret = default;
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// Tries to resolve the word-like selection range nearest the given UTF-16 index.
     /// </summary>
     /// <param name="textIndex">The zero-based UTF-16 index to query.</param>
