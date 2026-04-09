@@ -20,6 +20,10 @@ public sealed class TextLayoutJob
     /// <summary>
     /// Gets the ordered style sections applied to <see cref="Text"/>.
     /// </summary>
+    /// <remarks>
+    /// For non-empty text, sections must cover the full source string contiguously from start to
+    /// end with no gaps or overlaps.
+    /// </remarks>
     public IReadOnlyList<TextSection> Sections { get; }
 
     /// <summary>
@@ -91,11 +95,26 @@ public sealed class TextLayoutJob
 
     private static void ValidateSections(int textLength, IReadOnlyList<TextSection> sections)
     {
+        if (sections.Count == 0)
+        {
+            if (textLength != 0)
+            {
+                throw new ArgumentException("Non-empty text layout jobs require at least one section.", nameof(sections));
+            }
+
+            return;
+        }
+
         int previousEnd = 0;
 
         for (int i = 0; i < sections.Count; i++)
         {
             TextSection section = sections[i];
+
+            if (i == 0 && section.TextStart != 0)
+            {
+                throw new ArgumentException("Text sections must start at the beginning of the source text.", nameof(sections));
+            }
 
             if (section.TextEnd > textLength)
             {
@@ -107,7 +126,17 @@ public sealed class TextLayoutJob
                 throw new ArgumentException("Text sections must be ordered and non-overlapping.", nameof(sections));
             }
 
+            if (i > 0 && section.TextStart != previousEnd)
+            {
+                throw new ArgumentException("Text sections must cover the source text contiguously with no gaps.", nameof(sections));
+            }
+
             previousEnd = section.TextEnd;
+        }
+
+        if (previousEnd != textLength)
+        {
+            throw new ArgumentException("Text sections must cover the full source text.", nameof(sections));
         }
     }
 }

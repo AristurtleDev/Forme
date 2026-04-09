@@ -326,6 +326,30 @@ public sealed class FormeFont
     }
 
     /// <summary>
+    /// Returns the full reusable layout result for the given rich-text job.
+    /// </summary>
+    /// <param name="job">The rich-text layout job to process.</param>
+    /// <remarks>
+    /// This first rich-text entry point currently requires all sections to share this font
+    /// instance and the same size. Per-section character spacing, line-height overrides, and
+    /// baseline shifts are reserved for later slices of the rich-text roadmap.
+    /// </remarks>
+    public TextLayoutResult LayoutText(TextLayoutJob job)
+    {
+        ArgumentNullException.ThrowIfNull(job);
+
+        if (job.Text.Length == 0)
+        {
+            return TextLayoutResult.Empty;
+        }
+
+        TextFormat baseFormat = ValidateLayoutJob(job);
+        TextLayoutOptions layoutOptions = job.LayoutOptions;
+        TextLayoutResult baseResult = LayoutText(job.Text.AsSpan(), baseFormat.SizePixels, in layoutOptions);
+        return ApplySectionsToLayout(baseResult, job.Sections);
+    }
+
+    /// <summary>
     /// Returns the full reusable layout result for the given text, applying the provided layout
     /// options.
     /// </summary>
@@ -542,6 +566,269 @@ public sealed class FormeFont
     public IReadOnlyList<GlyphPlacement> GetGlyphs(ReadOnlySpan<char> text, float sizePixels, in TextLayoutOptions options)
     {
         return LayoutText(text, sizePixels, in options).Glyphs;
+    }
+
+    private TextFormat ValidateLayoutJob(TextLayoutJob job)
+    {
+        if (job.Sections.Count == 0)
+        {
+            throw new ArgumentException("Non-empty text layout jobs require at least one section.", nameof(job));
+        }
+
+        TextFormat baseFormat = job.Sections[0].Format;
+        ValidateSectionFormat(job.Sections[0], baseFormat, nameof(job));
+
+        for (int i = 1; i < job.Sections.Count; i++)
+        {
+            ValidateSectionFormat(job.Sections[i], baseFormat, nameof(job));
+        }
+
+        return baseFormat;
+    }
+
+    private void ValidateSectionFormat(TextSection section, TextFormat baseFormat, string paramName)
+    {
+        if (!ReferenceEquals(section.Format.Font, this))
+        {
+            throw new ArgumentException("This layout path currently requires all sections to use the same FormeFont instance.", paramName);
+        }
+
+        if (section.Format.SizePixels != baseFormat.SizePixels)
+        {
+            throw new ArgumentException("This layout path currently requires all sections to use the same font size.", paramName);
+        }
+
+        if (section.Format.CharacterSpacing != 0f)
+        {
+            throw new ArgumentException("Per-section character spacing is not supported yet. Use TextLayoutOptions.CharacterSpacing for now.", paramName);
+        }
+
+        if (section.Format.LineHeightPixels.HasValue)
+        {
+            throw new ArgumentException("Per-section line-height overrides are not supported yet.", paramName);
+        }
+
+        if (section.Format.BaselineShift != 0f)
+        {
+            throw new ArgumentException("Per-section baseline shifts are not supported yet.", paramName);
+        }
+    }
+
+    private static TextLayoutResult ApplySectionsToLayout(TextLayoutResult baseResult, IReadOnlyList<TextSection> sections)
+    {
+        List<GlyphPlacement> glyphs = new(baseResult.Glyphs.Count);
+        List<TextLayoutRun> runs = new(sections.Count);
+        int glyphCursor = 0;
+
+        for (int runIndex = 0; runIndex < sections.Count; runIndex++)
+        {
+            TextSection section = sections[runIndex];
+            int runGlyphStart = glyphs.Count;
+            bool hasVisualBounds = false;
+            float visualMinX = 0f;
+            float visualMinY = 0f;
+            float visualMaxX = 0f;
+            float visualMaxY = 0f;
+
+            while (glyphCursor < baseResult.Glyphs.Count)
+            {
+                GlyphPlacement glyph = baseResult.Glyphs[glyphCursor];
+                if (glyph.Index >= section.TextEnd)
+                {
+                    break;
+                }
+
+                if (glyph.TextEnd > section.TextStart)
+                {
+                    glyphs.Add(new GlyphPlacement(
+                        glyph.Index,
+                        glyph.TextLength,
+                        glyph.CodePoint,
+                        glyph.LineIndex,
+                        runIndex,
+                        glyph.BaselineX,
+                        glyph.BaselineY,
+                        glyph.LogicalBounds,
+                        glyph.VisualBounds,
+                        glyph.AdvanceWidth));
+
+                    if (glyph.VisualBounds.Width > 0f && glyph.VisualBounds.Height > 0f)
+                    {
+                        if (!hasVisualBounds)
+                        {
+                            visualMinX = glyph.VisualBounds.X;
+                            visualMinY = glyph.VisualBounds.Y;
+                            visualMaxX = glyph.VisualBounds.X2;
+                            visualMaxY = glyph.VisualBounds.Y2;
+                            hasVisualBounds = true;
+                        }
+                        else
+                        {
+                            if (glyph.VisualBounds.X < visualMinX)
+                            {
+                                visualMinX = glyph.VisualBounds.X;
+                            }
+
+                            if (glyph.VisualBounds.Y < visualMinY)
+                            {
+                                visualMinY = glyph.VisualBounds.Y;
+                            }
+
+                            if (glyph.VisualBounds.X2 > visualMaxX)
+                            {
+                                visualMaxX = glyph.VisualBounds.X2;
+                            }
+
+                            if (glyph.VisualBounds.Y2 > visualMaxY)
+                            {
+                                visualMaxY = glyph.VisualBounds.Y2;
+                            }
+                        }
+                    }
+                }
+
+                glyphCursor++;
+            }
+
+            if (!baseResult.TryGetCaretFromTextIndex(section.TextStart, out TextCaret startCaret))
+            {
+                throw new InvalidOperationException("Failed to resolve the start caret for a text section.");
+            }
+
+            if (!baseResult.TryGetCaretFromTextIndex(section.TextEnd, out TextCaret endCaret))
+            {
+                throw new InvalidOperationException("Failed to resolve the end caret for a text section.");
+            }
+
+            FormeTextBounds logicalBounds = BuildSectionLogicalBounds(baseResult, startCaret, endCaret);
+            FormeTextBounds visualBounds = hasVisualBounds
+                ? new FormeTextBounds(visualMinX, visualMinY, visualMaxX, visualMaxY)
+                : FormeTextBounds.Empty;
+
+            runs.Add(new TextLayoutRun(
+                section.Format,
+                section.TextStart,
+                section.TextLength,
+                runGlyphStart,
+                glyphs.Count - runGlyphStart,
+                logicalBounds,
+                visualBounds,
+                startCaret.LineIndex,
+                endCaret.LineIndex - startCaret.LineIndex + 1));
+        }
+
+        List<TextLayoutLine> lines = new(baseResult.Lines.Count);
+        for (int lineIndex = 0; lineIndex < baseResult.Lines.Count; lineIndex++)
+        {
+            TextLayoutLine line = baseResult.Lines[lineIndex];
+            int runStart = 0;
+            int runCount = 0;
+            bool hasRun = false;
+
+            for (int runIndex = 0; runIndex < runs.Count; runIndex++)
+            {
+                TextLayoutRun run = runs[runIndex];
+                if (lineIndex >= run.LineStart && lineIndex < run.LineEnd)
+                {
+                    if (!hasRun)
+                    {
+                        runStart = runIndex;
+                        hasRun = true;
+                    }
+
+                    runCount++;
+                }
+            }
+
+            lines.Add(new TextLayoutLine(
+                line.TextStart,
+                line.TextLength,
+                line.BaselineY,
+                line.LineHeight,
+                line.Ascent,
+                line.Descent,
+                line.Width,
+                line.LogicalBounds,
+                line.VisualBounds,
+                line.GlyphStart,
+                line.GlyphCount,
+                runStart,
+                runCount));
+        }
+
+        return new TextLayoutResult(baseResult.LogicalBounds, baseResult.VisualBounds, lines, runs, glyphs);
+    }
+
+    private static FormeTextBounds BuildSectionLogicalBounds(TextLayoutResult baseResult, TextCaret startCaret, TextCaret endCaret)
+    {
+        bool hasBounds = false;
+        float minX = 0f;
+        float minY = 0f;
+        float maxX = 0f;
+        float maxY = 0f;
+
+        for (int lineIndex = startCaret.LineIndex; lineIndex <= endCaret.LineIndex; lineIndex++)
+        {
+            TextLayoutLine line = baseResult.Lines[lineIndex];
+            float sectionMinX;
+            float sectionMaxX;
+
+            if (startCaret.LineIndex == endCaret.LineIndex)
+            {
+                sectionMinX = startCaret.X;
+                sectionMaxX = endCaret.X;
+            }
+            else if (lineIndex == startCaret.LineIndex)
+            {
+                sectionMinX = startCaret.X;
+                sectionMaxX = line.LogicalBounds.X2;
+            }
+            else if (lineIndex == endCaret.LineIndex)
+            {
+                sectionMinX = line.LogicalBounds.X;
+                sectionMaxX = endCaret.X;
+            }
+            else
+            {
+                sectionMinX = line.LogicalBounds.X;
+                sectionMaxX = line.LogicalBounds.X2;
+            }
+
+            if (!hasBounds)
+            {
+                minX = sectionMinX;
+                minY = line.LogicalBounds.Y;
+                maxX = sectionMaxX;
+                maxY = line.LogicalBounds.Y2;
+                hasBounds = true;
+            }
+            else
+            {
+                if (sectionMinX < minX)
+                {
+                    minX = sectionMinX;
+                }
+
+                if (line.LogicalBounds.Y < minY)
+                {
+                    minY = line.LogicalBounds.Y;
+                }
+
+                if (sectionMaxX > maxX)
+                {
+                    maxX = sectionMaxX;
+                }
+
+                if (line.LogicalBounds.Y2 > maxY)
+                {
+                    maxY = line.LogicalBounds.Y2;
+                }
+            }
+        }
+
+        return hasBounds
+            ? new FormeTextBounds(minX, minY, maxX, maxY)
+            : FormeTextBounds.Empty;
     }
 
     private List<LineLayoutInfo> BuildLines(ReadOnlySpan<char> text, float scale, in TextLayoutOptions options)
