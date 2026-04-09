@@ -618,4 +618,56 @@ public class TextLayoutJobTests
         Assert.Equal(MathF.Round(unsnapped.RowDebugBounds[0].VisualBounds.Y2), snapped.RowDebugBounds[0].VisualBounds.Y2);
         Assert.Equal(MathF.Round(unsnapped.GlyphDebugBounds[1].LogicalBounds.X2), snapped.GlyphDebugBounds[1].LogicalBounds.X2);
     }
+
+    [Fact]
+    public void GetSelectionRects_SingleLineSelection_ReturnsSingleRect()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("ABCD".AsSpan(), 20f);
+
+        IReadOnlyList<TextSelectionRect> rects = result.GetSelectionRects(1, 3);
+
+        Assert.Single(rects);
+        Assert.Equal(1, rects[0].TextStart);
+        Assert.Equal(2, rects[0].TextLength);
+        Assert.Equal(0, rects[0].LineIndex);
+        Assert.Equal(result.Glyphs[0].LogicalBounds.X2, rects[0].Bounds.X);
+        Assert.Equal(result.Glyphs[2].LogicalBounds.X2, rects[0].Bounds.X2);
+        Assert.Equal(result.Lines[0].LogicalBounds.Y, rects[0].Bounds.Y);
+        Assert.Equal(result.Lines[0].LogicalBounds.Y2, rects[0].Bounds.Y2);
+    }
+
+    [Fact]
+    public void GetSelectionRects_MultiLineSelection_ReturnsOneRectPerTouchedLine()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("AB\nCD".AsSpan(), 20f);
+
+        IReadOnlyList<TextSelectionRect> rects = result.GetSelectionRects(1, 4);
+
+        Assert.Equal(2, rects.Count);
+        Assert.Equal(1, rects[0].TextStart);
+        Assert.Equal(1, rects[0].TextLength);
+        Assert.Equal(0, rects[0].LineIndex);
+        Assert.Equal(result.Glyphs[0].LogicalBounds.X2, rects[0].Bounds.X);
+        Assert.Equal(result.Lines[0].LogicalBounds.X2, rects[0].Bounds.X2);
+        Assert.Equal(3, rects[1].TextStart);
+        Assert.Equal(1, rects[1].TextLength);
+        Assert.Equal(1, rects[1].LineIndex);
+        Assert.Equal(result.Lines[1].LogicalBounds.X, rects[1].Bounds.X);
+        Assert.Equal(result.Glyphs[2].LogicalBounds.X2, rects[1].Bounds.X2);
+    }
+
+    [Fact]
+    public void GetSelectionRects_ReversedSelection_NormalizesRange()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("ABCD".AsSpan(), 20f);
+
+        IReadOnlyList<TextSelectionRect> rects = result.GetSelectionRects(3, 1);
+
+        Assert.Single(rects);
+        Assert.Equal(1, rects[0].TextStart);
+        Assert.Equal(2, rects[0].TextLength);
+    }
 }

@@ -407,6 +407,82 @@ public sealed class TextLayoutResult
         return false;
     }
 
+    /// <summary>
+    /// Returns suggested selection rectangles for the given UTF-16 range.
+    /// </summary>
+    /// <param name="textStart">The zero-based UTF-16 start index of the selection.</param>
+    /// <param name="textEnd">The zero-based UTF-16 end index of the selection.</param>
+    /// <returns>
+    /// One rectangle per touched line, in display order. Empty selections return no rectangles.
+    /// </returns>
+    public IReadOnlyList<TextSelectionRect> GetSelectionRects(int textStart, int textEnd)
+    {
+        int resolvedStart = textStart;
+        int resolvedEnd = textEnd;
+        if (resolvedStart > resolvedEnd)
+        {
+            resolvedStart = textEnd;
+            resolvedEnd = textStart;
+        }
+
+        int textLength = GetTextLength();
+        if (resolvedStart < 0 || resolvedStart > textLength)
+        {
+            throw new ArgumentOutOfRangeException(nameof(textStart));
+        }
+
+        if (resolvedEnd < 0 || resolvedEnd > textLength)
+        {
+            throw new ArgumentOutOfRangeException(nameof(textEnd));
+        }
+
+        if (resolvedStart == resolvedEnd || Lines.Count == 0)
+        {
+            return [];
+        }
+
+        if (!TryGetCaretFromTextIndex(resolvedStart, out TextCaret startCaret))
+        {
+            throw new InvalidOperationException("Failed to resolve the start caret for the selection.");
+        }
+
+        if (!TryGetCaretFromTextIndex(resolvedEnd, out TextCaret endCaret))
+        {
+            throw new InvalidOperationException("Failed to resolve the end caret for the selection.");
+        }
+
+        List<TextSelectionRect> rects = new(endCaret.LineIndex - startCaret.LineIndex + 1);
+        for (int lineIndex = startCaret.LineIndex; lineIndex <= endCaret.LineIndex; lineIndex++)
+        {
+            TextLayoutLine line = Lines[lineIndex];
+            int lineSelectionStart = lineIndex == startCaret.LineIndex ? resolvedStart : line.TextStart;
+            int lineSelectionEnd = lineIndex == endCaret.LineIndex ? resolvedEnd : line.TextEnd;
+            if (lineSelectionEnd <= lineSelectionStart)
+            {
+                continue;
+            }
+
+            float minX = lineIndex == startCaret.LineIndex ? startCaret.X : line.LogicalBounds.X;
+            float maxX = lineIndex == endCaret.LineIndex ? endCaret.X : line.LogicalBounds.X2;
+            if (maxX <= minX)
+            {
+                continue;
+            }
+
+            rects.Add(new TextSelectionRect(
+                lineSelectionStart,
+                lineSelectionEnd - lineSelectionStart,
+                lineIndex,
+                new FormeTextBounds(
+                    minX,
+                    line.LogicalBounds.Y,
+                    maxX,
+                    line.LogicalBounds.Y2)));
+        }
+
+        return rects;
+    }
+
     private int GetTextLength()
     {
         if (Runs.Count > 0)
