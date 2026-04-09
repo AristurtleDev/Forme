@@ -408,6 +408,161 @@ public sealed class TextLayoutResult
     }
 
     /// <summary>
+    /// Tries to resolve the caret at the start of the given line.
+    /// </summary>
+    /// <param name="lineIndex">The zero-based line index to query.</param>
+    /// <param name="caret">
+    /// When this method returns <see langword="true"/>, contains the resolved caret geometry.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when <paramref name="lineIndex"/> is within range; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetLineStartCaret(int lineIndex, out TextCaret caret)
+    {
+        if ((uint)lineIndex >= (uint)Lines.Count)
+        {
+            caret = default;
+            return false;
+        }
+
+        return TryGetCaretFromTextIndex(Lines[lineIndex].TextStart, out caret);
+    }
+
+    /// <summary>
+    /// Tries to resolve the caret at the end of the given line.
+    /// </summary>
+    /// <param name="lineIndex">The zero-based line index to query.</param>
+    /// <param name="caret">
+    /// When this method returns <see langword="true"/>, contains the resolved caret geometry.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when <paramref name="lineIndex"/> is within range; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetLineEndCaret(int lineIndex, out TextCaret caret)
+    {
+        if ((uint)lineIndex >= (uint)Lines.Count)
+        {
+            caret = default;
+            return false;
+        }
+
+        return TryGetCaretFromTextIndex(Lines[lineIndex].TextEnd, out caret);
+    }
+
+    /// <summary>
+    /// Tries to resolve the nearest caret on the given line for the requested X position.
+    /// </summary>
+    /// <param name="lineIndex">The zero-based line index to query.</param>
+    /// <param name="x">The preferred X position, relative to the layout origin.</param>
+    /// <param name="caret">
+    /// When this method returns <see langword="true"/>, contains the resolved caret geometry.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when <paramref name="lineIndex"/> is within range; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetCaretFromLineX(int lineIndex, float x, out TextCaret caret)
+    {
+        if ((uint)lineIndex >= (uint)Lines.Count)
+        {
+            caret = default;
+            return false;
+        }
+
+        TextLayoutLine line = Lines[lineIndex];
+        if (line.GlyphCount == 0)
+        {
+            caret = new TextCaret(line.TextStart, lineIndex, line.LogicalBounds.X, line.BaselineY, line.LogicalBounds.Y, line.LogicalBounds.Y2);
+            return true;
+        }
+
+        if (x <= line.LogicalBounds.X)
+        {
+            return TryGetCaretFromTextIndex(line.TextStart, out caret);
+        }
+
+        if (x >= line.LogicalBounds.X2)
+        {
+            return TryGetCaretFromTextIndex(line.TextEnd, out caret);
+        }
+
+        for (int glyphIndex = line.GlyphStart; glyphIndex < line.GlyphEnd; glyphIndex++)
+        {
+            GlyphPlacement glyph = Glyphs[glyphIndex];
+            float midpoint = glyph.BaselineX + glyph.AdvanceWidth * 0.5f;
+            if (x < midpoint)
+            {
+                return TryGetCaretFromTextIndex(glyph.Index, out caret);
+            }
+
+            if (x <= glyph.LogicalBounds.X2)
+            {
+                return TryGetCaretFromTextIndex(glyph.TextEnd, out caret);
+            }
+        }
+
+        return TryGetCaretFromTextIndex(line.TextEnd, out caret);
+    }
+
+    /// <summary>
+    /// Tries to resolve a caret on a vertically adjacent line using the current caret X position
+    /// as the preferred horizontal location.
+    /// </summary>
+    /// <param name="textIndex">The zero-based UTF-16 insertion index to move from.</param>
+    /// <param name="lineDelta">The signed line offset to apply.</param>
+    /// <param name="caret">
+    /// When this method returns <see langword="true"/>, contains the resolved caret geometry.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the source index and target line are valid; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetAdjacentLineCaret(int textIndex, int lineDelta, out TextCaret caret)
+    {
+        if (!TryGetCaretFromTextIndex(textIndex, out TextCaret currentCaret))
+        {
+            caret = default;
+            return false;
+        }
+
+        return TryGetAdjacentLineCaret(textIndex, lineDelta, currentCaret.X, out caret);
+    }
+
+    /// <summary>
+    /// Tries to resolve a caret on a vertically adjacent line using the supplied preferred X
+    /// position.
+    /// </summary>
+    /// <param name="textIndex">The zero-based UTF-16 insertion index to move from.</param>
+    /// <param name="lineDelta">The signed line offset to apply.</param>
+    /// <param name="preferredX">The preferred X position, relative to the layout origin.</param>
+    /// <param name="caret">
+    /// When this method returns <see langword="true"/>, contains the resolved caret geometry.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the source index and target line are valid; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetAdjacentLineCaret(int textIndex, int lineDelta, float preferredX, out TextCaret caret)
+    {
+        if (!TryGetCaretFromTextIndex(textIndex, out TextCaret currentCaret))
+        {
+            caret = default;
+            return false;
+        }
+
+        int targetLineIndex = currentCaret.LineIndex + lineDelta;
+        if ((uint)targetLineIndex >= (uint)Lines.Count)
+        {
+            caret = default;
+            return false;
+        }
+
+        return TryGetCaretFromLineX(targetLineIndex, preferredX, out caret);
+    }
+
+    /// <summary>
     /// Returns suggested selection rectangles for the given UTF-16 range.
     /// </summary>
     /// <param name="textStart">The zero-based UTF-16 start index of the selection.</param>

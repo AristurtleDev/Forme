@@ -670,4 +670,61 @@ public class TextLayoutJobTests
         Assert.Equal(1, rects[0].TextStart);
         Assert.Equal(2, rects[0].TextLength);
     }
+
+    [Fact]
+    public void LineCaretQueries_ReturnStartAndEndCarets()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("AB\nCD".AsSpan(), 20f);
+
+        Assert.True(result.TryGetLineStartCaret(1, out TextCaret startCaret));
+        Assert.True(result.TryGetLineEndCaret(1, out TextCaret endCaret));
+
+        Assert.Equal(1, startCaret.LineIndex);
+        Assert.Equal(3, startCaret.TextIndex);
+        Assert.Equal(result.Lines[1].LogicalBounds.X, startCaret.X);
+        Assert.Equal(1, endCaret.LineIndex);
+        Assert.Equal(5, endCaret.TextIndex);
+        Assert.Equal(result.Lines[1].LogicalBounds.X2, endCaret.X);
+    }
+
+    [Fact]
+    public void TryGetCaretFromLineX_UsesNearestInsertionPoint()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("ABCD".AsSpan(), 20f);
+        GlyphPlacement firstGlyph = result.Glyphs[0];
+
+        Assert.True(result.TryGetCaretFromLineX(0, firstGlyph.BaselineX + firstGlyph.AdvanceWidth * 0.25f, out TextCaret leadingCaret));
+        Assert.True(result.TryGetCaretFromLineX(0, firstGlyph.BaselineX + firstGlyph.AdvanceWidth * 0.75f, out TextCaret trailingCaret));
+
+        Assert.Equal(0, leadingCaret.TextIndex);
+        Assert.Equal(1, trailingCaret.TextIndex);
+    }
+
+    [Fact]
+    public void TryGetAdjacentLineCaret_UsesCurrentCaretXByDefault()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("ABCD\nEF".AsSpan(), 20f);
+
+        Assert.True(result.TryGetAdjacentLineCaret(3, 1, out TextCaret movedCaret));
+
+        Assert.Equal(1, movedCaret.LineIndex);
+        Assert.Equal(7, movedCaret.TextIndex);
+        Assert.Equal(result.Lines[1].LogicalBounds.X2, movedCaret.X);
+    }
+
+    [Fact]
+    public void TryGetAdjacentLineCaret_WithPreferredX_UsesRequestedColumn()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("AB\nCDEF".AsSpan(), 20f);
+
+        Assert.True(result.TryGetAdjacentLineCaret(0, 1, result.Lines[1].LogicalBounds.X2, out TextCaret movedCaret));
+
+        Assert.Equal(1, movedCaret.LineIndex);
+        Assert.Equal(7, movedCaret.TextIndex);
+        Assert.Equal(result.Lines[1].LogicalBounds.X2, movedCaret.X);
+    }
 }
