@@ -727,4 +727,60 @@ public class TextLayoutJobTests
         Assert.Equal(7, movedCaret.TextIndex);
         Assert.Equal(result.Lines[1].LogicalBounds.X2, movedCaret.X);
     }
+
+    [Fact]
+    public void WordBoundaryQueries_FollowWordAndPunctuationBoundaries()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("abc d3f g_h i-j".AsSpan(), 20f);
+
+        Assert.Equal(3, result.GetNextWordBoundary(1));
+        Assert.Equal(7, result.GetNextWordBoundary(3));
+        Assert.Equal(11, result.GetNextWordBoundary(9));
+        Assert.Equal(13, result.GetNextWordBoundary(12));
+        Assert.Equal(15, result.GetNextWordBoundary(13));
+
+        Assert.Equal(4, result.GetPreviousWordBoundary(7));
+        Assert.Equal(8, result.GetPreviousWordBoundary(11));
+        Assert.Equal(12, result.GetPreviousWordBoundary(13));
+        Assert.Equal(14, result.GetPreviousWordBoundary(15));
+    }
+
+    [Fact]
+    public void TryGetWordRange_SelectsCurrentWordFromInsideWord()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("abc def".AsSpan(), 20f);
+
+        Assert.True(result.TryGetWordRange(1, out int wordStart, out int wordEnd));
+
+        Assert.Equal(0, wordStart);
+        Assert.Equal(3, wordEnd);
+    }
+
+    [Fact]
+    public void TryGetWordRange_OnWhitespaceAdjacentToWord_SelectsPreviousWord()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("abc def".AsSpan(), 20f);
+
+        Assert.True(result.TryGetWordRange(3, out int wordStart, out int wordEnd));
+
+        Assert.Equal(0, wordStart);
+        Assert.Equal(3, wordEnd);
+    }
+
+    [Fact]
+    public void TextLayoutResult_PreservesSourceTextForWordQueries()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("abc.def".AsSpan(), 20f);
+
+        Assert.Equal("abc.def", result.Text);
+        Assert.Equal(3, result.GetNextWordBoundary(1));
+        Assert.Equal(7, result.GetNextWordBoundary(3));
+        Assert.True(result.TryGetWordRange(4, out int wordStart, out int wordEnd));
+        Assert.Equal(4, wordStart);
+        Assert.Equal(7, wordEnd);
+    }
 }

@@ -534,7 +534,7 @@ public sealed class FormeFont
             new TextLayoutRun(runFormat, 0, text.Length, 0, placements.Count, logicalBounds, visualBoundsResult, 0, lines.Count)
         ];
 
-        TextLayoutResult result = new TextLayoutResult(logicalBounds, visualBoundsResult, lines, runs, placements);
+        TextLayoutResult result = new TextLayoutResult(text.ToString(), logicalBounds, visualBoundsResult, lines, runs, placements);
         return ApplyGeometrySnap(result, options.GeometrySnap);
     }
 
@@ -737,7 +737,7 @@ public sealed class FormeFont
                 runCount));
         }
 
-        return new TextLayoutResult(baseResult.LogicalBounds, baseResult.VisualBounds, lines, runs, glyphs);
+        return new TextLayoutResult(baseResult.Text, baseResult.LogicalBounds, baseResult.VisualBounds, lines, runs, glyphs);
     }
 
     private static FormeTextBounds BuildSectionLogicalBounds(TextLayoutResult baseResult, List<GlyphPlacement> glyphs, int glyphStart, int glyphCount, TextCaret startCaret, TextCaret endCaret)
@@ -1073,7 +1073,7 @@ public sealed class FormeFont
             new TextLayoutRun(baseFormat, 0, job.Text.Length, 0, placements.Count, logicalBounds, visualBoundsResult, 0, lines.Count)
         ];
 
-        return new TextLayoutResult(logicalBounds, visualBoundsResult, lines, runs, placements);
+        return new TextLayoutResult(job.Text, logicalBounds, visualBoundsResult, lines, runs, placements);
     }
 
     private static TextLayoutResult ApplyGeometrySnap(TextLayoutResult result, TextGeometrySnap geometrySnap)
@@ -1137,6 +1137,7 @@ public sealed class FormeFont
         }
 
         return new TextLayoutResult(
+            result.Text,
             Snap(result.LogicalBounds),
             Snap(result.VisualBounds),
             lines,

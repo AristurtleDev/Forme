@@ -3,7 +3,9 @@
 // See LICENSE file in the project root for full license information.
 
 using System;
+using System.Buffers;
 using System.Collections.Generic;
+using System.Text;
 
 namespace Forme;
 
@@ -21,7 +23,12 @@ public sealed class TextLayoutResult
     /// <summary>
     /// Gets an empty layout result with no lines, no glyphs, and empty bounds.
     /// </summary>
-    public static TextLayoutResult Empty { get; } = new TextLayoutResult(FormeTextBounds.Empty, FormeTextBounds.Empty, [], [], []);
+    public static TextLayoutResult Empty { get; } = new TextLayoutResult(string.Empty, FormeTextBounds.Empty, FormeTextBounds.Empty, [], [], []);
+
+    /// <summary>
+    /// Gets the original source text this layout result was produced from.
+    /// </summary>
+    public string Text { get; }
 
     /// <summary>
     /// Gets the overall logical bounds of the laid-out text in pixels.
@@ -112,12 +119,14 @@ public sealed class TextLayoutResult
     }
 
     internal TextLayoutResult(
+        string text,
         FormeTextBounds logicalBounds,
         FormeTextBounds visualBounds,
         IReadOnlyList<TextLayoutLine> lines,
         IReadOnlyList<TextLayoutRun> runs,
         IReadOnlyList<GlyphPlacement> glyphs)
     {
+        Text = text;
         LogicalBounds = logicalBounds;
         VisualBounds = visualBounds;
         Lines = lines;
@@ -563,6 +572,212 @@ public sealed class TextLayoutResult
     }
 
     /// <summary>
+    /// Returns the previous word boundary at or before the given UTF-16 index.
+    /// </summary>
+    /// <param name="textIndex">The zero-based UTF-16 index to search from.</param>
+    /// <returns>The resolved previous word boundary.</returns>
+    public int GetPreviousWordBoundary(int textIndex)
+    {
+        ValidateTextIndex(textIndex);
+
+        if (textIndex == 0 || Text.Length == 0)
+        {
+            return 0;
+        }
+
+        int position = textIndex;
+        if (!TryGetRuneBefore(position, out Rune current, out int currentStart))
+        {
+            return 0;
+        }
+
+        if (IsWordRune(current))
+        {
+            return FindWordStart(currentStart);
+        }
+
+        position = currentStart;
+        while (position > 0)
+        {
+            if (!TryGetRuneBefore(position, out Rune previous, out int previousStart))
+            {
+                return 0;
+            }
+
+            if (IsWordRune(previous))
+            {
+                return FindWordStart(previousStart);
+            }
+
+            position = previousStart;
+        }
+
+        return 0;
+    }
+
+    /// <summary>
+    /// Returns the next word boundary at or after the given UTF-16 index.
+    /// </summary>
+    /// <param name="textIndex">The zero-based UTF-16 index to search from.</param>
+    /// <returns>The resolved next word boundary.</returns>
+    public int GetNextWordBoundary(int textIndex)
+    {
+        ValidateTextIndex(textIndex);
+
+        if (textIndex >= Text.Length || Text.Length == 0)
+        {
+            return Text.Length;
+        }
+
+        int position = textIndex;
+        if (!TryGetRuneAt(position, out Rune current, out int currentLength))
+        {
+            return Text.Length;
+        }
+
+        if (IsWordRune(current))
+        {
+            position += currentLength;
+            while (position < Text.Length)
+            {
+                if (!TryGetRuneAt(position, out Rune next, out int nextLength))
+                {
+                    break;
+                }
+
+                if (next.Value == '.')
+                {
+                    return position;
+                }
+
+                if (!IsWordRune(next))
+                {
+                    return position;
+                }
+
+                position += nextLength;
+            }
+
+            return Text.Length;
+        }
+
+        position += currentLength;
+        while (position < Text.Length)
+        {
+            if (!TryGetRuneAt(position, out Rune next, out int nextLength))
+            {
+                break;
+            }
+
+            if (IsWordRune(next))
+            {
+                position += nextLength;
+                while (position < Text.Length)
+                {
+                    if (!TryGetRuneAt(position, out Rune wordNext, out int wordNextLength))
+                    {
+                        break;
+                    }
+
+                    if (wordNext.Value == '.')
+                    {
+                        return position;
+                    }
+
+                    if (!IsWordRune(wordNext))
+                    {
+                        return position;
+                    }
+
+                    position += wordNextLength;
+                }
+
+                return Text.Length;
+            }
+
+            if (next.Value == '.')
+            {
+                return position;
+            }
+
+            position += nextLength;
+        }
+
+        return Text.Length;
+    }
+
+    /// <summary>
+    /// Tries to resolve the word-like range nearest the given UTF-16 index.
+    /// </summary>
+    /// <param name="textIndex">The zero-based UTF-16 index to query.</param>
+    /// <param name="wordStart">
+    /// When this method returns <see langword="true"/>, contains the resolved word start.
+    /// </param>
+    /// <param name="wordEnd">
+    /// When this method returns <see langword="true"/>, contains the resolved word end.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when a non-empty range could be resolved; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetWordRange(int textIndex, out int wordStart, out int wordEnd)
+    {
+        ValidateTextIndex(textIndex);
+
+        wordStart = textIndex;
+        wordEnd = textIndex;
+        if (Text.Length == 0)
+        {
+            return false;
+        }
+
+        bool hasBefore = TryGetRuneBefore(textIndex, out Rune before, out int _);
+        bool hasAfter = TryGetRuneAt(textIndex, out Rune after, out int _);
+
+        if (textIndex == 0)
+        {
+            wordEnd = GetNextWordBoundary(textIndex);
+            return wordEnd > wordStart;
+        }
+
+        if (hasBefore && hasAfter)
+        {
+            if (IsWordRune(before))
+            {
+                wordStart = GetPreviousWordBoundary(textIndex);
+                wordEnd = GetNextWordBoundary(wordStart);
+                return wordEnd > wordStart;
+            }
+
+            if (IsWordRune(after))
+            {
+                wordStart = textIndex;
+                wordEnd = GetNextWordBoundary(textIndex);
+                return wordEnd > wordStart;
+            }
+
+            wordStart = GetPreviousWordBoundary(textIndex);
+            wordEnd = GetNextWordBoundary(textIndex);
+            return wordEnd > wordStart;
+        }
+
+        if (hasBefore)
+        {
+            wordStart = GetPreviousWordBoundary(textIndex);
+            wordEnd = textIndex;
+            return wordEnd > wordStart;
+        }
+
+        if (hasAfter)
+        {
+            wordEnd = GetNextWordBoundary(textIndex);
+            return wordEnd > wordStart;
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Returns suggested selection rectangles for the given UTF-16 range.
     /// </summary>
     /// <param name="textStart">The zero-based UTF-16 start index of the selection.</param>
@@ -651,6 +866,77 @@ public sealed class TextLayoutResult
         }
 
         return 0;
+    }
+
+    private void ValidateTextIndex(int textIndex)
+    {
+        if (textIndex < 0 || textIndex > Text.Length)
+        {
+            throw new ArgumentOutOfRangeException(nameof(textIndex));
+        }
+    }
+
+    private int FindWordStart(int textIndex)
+    {
+        int position = textIndex;
+        while (position > 0)
+        {
+            if (!TryGetRuneBefore(position, out Rune previous, out int previousStart) || !IsWordRune(previous))
+            {
+                break;
+            }
+
+            position = previousStart;
+        }
+
+        return position;
+    }
+
+    private bool TryGetRuneAt(int textIndex, out Rune rune, out int runeLength)
+    {
+        if ((uint)textIndex >= (uint)Text.Length)
+        {
+            rune = default;
+            runeLength = 0;
+            return false;
+        }
+
+        OperationStatus status = Rune.DecodeFromUtf16(Text.AsSpan(textIndex), out rune, out int charsConsumed);
+        if (status != OperationStatus.Done)
+        {
+            rune = default;
+            runeLength = 0;
+            return false;
+        }
+
+        runeLength = charsConsumed;
+        return true;
+    }
+
+    private bool TryGetRuneBefore(int textIndex, out Rune rune, out int runeStart)
+    {
+        if (textIndex <= 0 || textIndex > Text.Length)
+        {
+            rune = default;
+            runeStart = 0;
+            return false;
+        }
+
+        OperationStatus status = Rune.DecodeLastFromUtf16(Text.AsSpan(0, textIndex), out rune, out int charsConsumed);
+        if (status != OperationStatus.Done)
+        {
+            rune = default;
+            runeStart = 0;
+            return false;
+        }
+
+        runeStart = textIndex - charsConsumed;
+        return true;
+    }
+
+    private static bool IsWordRune(Rune rune)
+    {
+        return Rune.IsLetterOrDigit(rune) || rune.Value == '_';
     }
 
     private bool TryGetCaretLine(int textIndex, out int lineIndex)
