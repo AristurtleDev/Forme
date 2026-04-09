@@ -758,6 +758,75 @@ public sealed class TextLayoutResult
     }
 
     /// <summary>
+    /// Tries to resolve the word-like selection range nearest the given UTF-16 index.
+    /// </summary>
+    /// <param name="textIndex">The zero-based UTF-16 index to query.</param>
+    /// <param name="selection">
+    /// When this method returns <see langword="true"/>, contains the resolved selection range.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when a non-empty word-like range could be resolved; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetWordSelection(int textIndex, out TextSelectionRange selection)
+    {
+        if (!TryGetWordRange(textIndex, out int wordStart, out int wordEnd))
+        {
+            selection = default;
+            return false;
+        }
+
+        selection = new TextSelectionRange(wordStart, wordEnd);
+        return true;
+    }
+
+    /// <summary>
+    /// Tries to resolve the line selection range nearest the given UTF-16 index.
+    /// </summary>
+    /// <param name="textIndex">The zero-based UTF-16 index to query.</param>
+    /// <param name="selection">
+    /// When this method returns <see langword="true"/>, contains the resolved selection range.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the index resolves to a laid-out line; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetLineSelection(int textIndex, out TextSelectionRange selection)
+    {
+        if (!TryGetLineRange(textIndex, out int lineStart, out int lineEnd))
+        {
+            selection = default;
+            return false;
+        }
+
+        selection = new TextSelectionRange(lineStart, lineEnd);
+        return true;
+    }
+
+    /// <summary>
+    /// Tries to resolve the paragraph selection range nearest the given UTF-16 index.
+    /// </summary>
+    /// <param name="textIndex">The zero-based UTF-16 index to query.</param>
+    /// <param name="selection">
+    /// When this method returns <see langword="true"/>, contains the resolved selection range.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the index resolves to a laid-out paragraph; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetParagraphSelection(int textIndex, out TextSelectionRange selection)
+    {
+        if (!TryGetParagraphRange(textIndex, out int paragraphStart, out int paragraphEnd))
+        {
+            selection = default;
+            return false;
+        }
+
+        selection = new TextSelectionRange(paragraphStart, paragraphEnd);
+        return true;
+    }
+
+    /// <summary>
     /// Tries to resolve the nearest caret on the given line for the requested X position.
     /// </summary>
     /// <param name="lineIndex">The zero-based line index to query.</param>

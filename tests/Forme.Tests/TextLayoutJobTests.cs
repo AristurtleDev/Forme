@@ -945,6 +945,61 @@ public class TextLayoutJobTests
     }
 
     [Fact]
+    public void TryGetWordSelection_ReturnsSelectionRangeForResolvedWord()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("abc def".AsSpan(), 20f);
+
+        Assert.True(result.TryGetWordSelection(4, out TextSelectionRange selection));
+
+        Assert.Equal(4, selection.AnchorTextIndex);
+        Assert.Equal(7, selection.FocusTextIndex);
+        Assert.Equal(4, selection.Start);
+        Assert.Equal(7, selection.End);
+    }
+
+    [Fact]
+    public void TryGetLineSelection_ReturnsSelectionRangeForLine()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("AB\nCD".AsSpan(), 20f);
+
+        Assert.True(result.TryGetLineSelection(3, out TextSelectionRange selection));
+
+        Assert.Equal(3, selection.Start);
+        Assert.Equal(5, selection.End);
+    }
+
+    [Fact]
+    public void TryGetParagraphSelection_WrappedParagraph_SpansWrappedLines()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutOptions options = new TextLayoutOptions
+        {
+            MaxWidth = 45f
+        };
+        TextLayoutResult result = font.LayoutText("Wrap here".AsSpan(), 20f, in options);
+
+        Assert.True(result.TryGetParagraphSelection(result.Lines[1].TextStart, out TextSelectionRange selection));
+
+        Assert.Equal(0, selection.Start);
+        Assert.Equal("Wrap here".Length, selection.End);
+    }
+
+    [Fact]
+    public void TryGetParagraphSelection_EmptyParagraph_ReturnsEmptySelectionAtParagraph()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("A\n\nB".AsSpan(), 20f);
+
+        Assert.True(result.TryGetParagraphSelection(2, out TextSelectionRange selection));
+
+        Assert.True(selection.IsEmpty);
+        Assert.Equal(2, selection.AnchorTextIndex);
+        Assert.Equal(2, selection.FocusTextIndex);
+    }
+
+    [Fact]
     public void TryGetAdjacentLineCaret_UsesCurrentCaretXByDefault()
     {
         FormeFont font = LoadTestFont();
