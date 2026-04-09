@@ -3,6 +3,7 @@
 // See LICENSE file in the project root for full license information.
 
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -343,6 +344,8 @@ public sealed class FormeFont
             return TextLayoutResult.Empty;
         }
 
+        ValidateMissingGlyphPolicy(job.Text, job.LayoutOptions.MissingGlyphPolicy);
+
         TextFormat baseFormat = ValidateLayoutJob(job);
         TextLayoutResult baseResult = LayoutTextCore(job, baseFormat);
         TextLayoutResult result = ApplySectionsToLayout(baseResult, job.Sections);
@@ -362,6 +365,8 @@ public sealed class FormeFont
         {
             return TextLayoutResult.Empty;
         }
+
+        ValidateMissingGlyphPolicy(text, options.MissingGlyphPolicy);
 
         ScaledFontMetrics scaledMetrics = GetScaledMetrics(sizePixels);
         float scale = sizePixels / Math.Max(1, Metrics.UnitsPerEm);
@@ -1750,6 +1755,32 @@ public sealed class FormeFont
             y: baselineY - glyph.BoundingBox.Y2 * scale,
             x2: baselineX + glyph.BoundingBox.X2 * scale,
             y2: baselineY - glyph.BoundingBox.Y1 * scale);
+    }
+
+    private void ValidateMissingGlyphPolicy(ReadOnlySpan<char> text, TextMissingGlyphPolicy policy)
+    {
+        if (policy != TextMissingGlyphPolicy.Throw)
+        {
+            return;
+        }
+
+        int textIndex = 0;
+        while (textIndex < text.Length)
+        {
+            OperationStatus status = Rune.DecodeFromUtf16(text[textIndex..], out Rune rune, out int charsConsumed);
+            if (status != OperationStatus.Done)
+            {
+                break;
+            }
+
+            if (rune.Value != '\n' && !Glyphs.ContainsKey(rune.Value))
+            {
+                throw new InvalidOperationException(
+                    $"The current FormeFont does not contain a glyph for U+{rune.Value:X4} at UTF-16 index {textIndex}.");
+            }
+
+            textIndex += charsConsumed;
+        }
     }
 
     internal static ulong MakePairAdjustmentKey(int previousCodePoint, int currentCodePoint)

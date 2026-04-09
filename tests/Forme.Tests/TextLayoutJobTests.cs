@@ -163,6 +163,39 @@ public class TextLayoutJobTests
     }
 
     [Fact]
+    public void LayoutText_WithMissingGlyphPolicyThrow_ThrowsForMissingCodePoint()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutOptions options = new TextLayoutOptions
+        {
+            MissingGlyphPolicy = TextMissingGlyphPolicy.Throw
+        };
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+            font.LayoutText("A\u00E9".AsSpan(), 20f, in options));
+
+        Assert.Contains("U+00E9", exception.Message);
+    }
+
+    [Fact]
+    public void LayoutText_JobWithMissingGlyphPolicyThrow_ThrowsForMissingCodePoint()
+    {
+        FormeFont font = LoadTestFont();
+        TextFormat format = new TextFormat(font, 20f);
+        TextLayoutJob job = TextLayoutJob.CreatePlain(
+            "A\u00E9",
+            format,
+            new TextLayoutOptions
+            {
+                MissingGlyphPolicy = TextMissingGlyphPolicy.Throw
+            });
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => font.LayoutText(job));
+
+        Assert.Contains("U+00E9", exception.Message);
+    }
+
+    [Fact]
     public void LayoutText_JobWithMismatchedSize_UsesSectionSizes()
     {
         FormeFont font = LoadTestFont();

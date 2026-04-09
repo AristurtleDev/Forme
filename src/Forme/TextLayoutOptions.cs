@@ -52,4 +52,9 @@ public readonly struct TextLayoutOptions
     /// Gets the pixel-snapping policy applied to the geometry in the resulting layout output.
     /// </summary>
     public TextGeometrySnap GeometrySnap { get; init; }
+
+    /// <summary>
+    /// Gets how missing glyphs should be handled during layout.
+    /// </summary>
+    public TextMissingGlyphPolicy MissingGlyphPolicy { get; init; }
 }
