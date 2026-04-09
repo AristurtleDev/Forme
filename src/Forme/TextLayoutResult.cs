@@ -251,6 +251,62 @@ public sealed class TextLayoutResult
     }
 
     /// <summary>
+    /// Tries to resolve the nearest caret on the line containing the given point.
+    /// </summary>
+    /// <param name="x">The X position, relative to the layout origin.</param>
+    /// <param name="y">The Y position, relative to the layout origin.</param>
+    /// <param name="caret">
+    /// When this method returns <see langword="true"/>, contains the resolved caret geometry.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when <paramref name="y"/> falls within a line's logical bounds;
+    /// otherwise, <see langword="false"/>.
+    /// </returns>
+    public bool TryGetCaretFromPoint(float x, float y, out TextCaret caret)
+    {
+        if (!TryGetLineIndexFromY(y, out int lineIndex))
+        {
+            caret = default;
+            return false;
+        }
+
+        return TryGetCaretFromLineX(lineIndex, x, out caret);
+    }
+
+    /// <summary>
+    /// Tries to resolve the nearest caret for the given point, clamping vertically to the closest
+    /// line when the point falls above or below the laid-out text.
+    /// </summary>
+    /// <param name="x">The X position, relative to the layout origin.</param>
+    /// <param name="y">The Y position, relative to the layout origin.</param>
+    /// <param name="caret">
+    /// When this method returns <see langword="true"/>, contains the resolved caret geometry.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the layout contains at least one line; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetNearestCaretFromPoint(float x, float y, out TextCaret caret)
+    {
+        int lineIndex;
+        if (TryGetLineIndexFromY(y, out int containingLineIndex))
+        {
+            lineIndex = containingLineIndex;
+        }
+        else
+        {
+            lineIndex = GetNearestLineIndexFromY(y);
+            if (lineIndex < 0)
+            {
+                caret = default;
+                return false;
+            }
+        }
+
+        return TryGetCaretFromLineX(lineIndex, x, out caret);
+    }
+
+    /// <summary>
     /// Tries to find the glyph whose logical bounds contain the given point.
     /// </summary>
     /// <param name="x">The X position, relative to the layout origin.</param>

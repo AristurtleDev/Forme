@@ -703,6 +703,56 @@ public class TextLayoutJobTests
     }
 
     [Fact]
+    public void TryGetCaretFromPoint_OnLine_UsesNearestInsertionPoint()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("ABCD".AsSpan(), 20f);
+        GlyphPlacement firstGlyph = result.Glyphs[0];
+        float y = firstGlyph.LogicalBounds.Y + firstGlyph.LogicalBounds.Height * 0.5f;
+
+        Assert.True(result.TryGetCaretFromPoint(firstGlyph.BaselineX + firstGlyph.AdvanceWidth * 0.25f, y, out TextCaret leadingCaret));
+        Assert.True(result.TryGetCaretFromPoint(firstGlyph.BaselineX + firstGlyph.AdvanceWidth * 0.75f, y, out TextCaret trailingCaret));
+
+        Assert.Equal(0, leadingCaret.TextIndex);
+        Assert.Equal(1, trailingCaret.TextIndex);
+    }
+
+    [Fact]
+    public void TryGetCaretFromPoint_OutsideLineBounds_ReturnsFalse()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("ABCD".AsSpan(), 20f);
+
+        Assert.False(result.TryGetCaretFromPoint(result.Lines[0].LogicalBounds.X, result.Lines[0].LogicalBounds.Y - 1f, out _));
+    }
+
+    [Fact]
+    public void TryGetNearestCaretFromPoint_AboveLayout_UsesFirstLine()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("AB\nCD".AsSpan(), 20f);
+
+        Assert.True(result.TryGetNearestCaretFromPoint(result.Lines[0].LogicalBounds.X2 + 50f, result.Lines[0].LogicalBounds.Y - 10f, out TextCaret caret));
+
+        Assert.Equal(0, caret.LineIndex);
+        Assert.Equal(result.Lines[0].TextEnd, caret.TextIndex);
+        Assert.Equal(result.Lines[0].LogicalBounds.X2, caret.X);
+    }
+
+    [Fact]
+    public void TryGetNearestCaretFromPoint_BelowLayout_UsesLastLine()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("AB\nCD".AsSpan(), 20f);
+
+        Assert.True(result.TryGetNearestCaretFromPoint(result.Lines[1].LogicalBounds.X - 50f, result.Lines[1].LogicalBounds.Y2 + 10f, out TextCaret caret));
+
+        Assert.Equal(1, caret.LineIndex);
+        Assert.Equal(result.Lines[1].TextStart, caret.TextIndex);
+        Assert.Equal(result.Lines[1].LogicalBounds.X, caret.X);
+    }
+
+    [Fact]
     public void TryGetAdjacentLineCaret_UsesCurrentCaretXByDefault()
     {
         FormeFont font = LoadTestFont();
