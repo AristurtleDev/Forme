@@ -1103,6 +1103,102 @@ public sealed class TextLayoutResult
     }
 
     /// <summary>
+    /// Tries to collapse the given selection to its anchor endpoint.
+    /// </summary>
+    /// <param name="selection">The selection range to collapse.</param>
+    /// <param name="collapsedSelection">
+    /// When this method returns <see langword="true"/>, contains the resolved collapsed
+    /// selection range.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the anchor resolves to a valid caret; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryCollapseSelectionToAnchor(TextSelectionRange selection, out TextSelectionRange collapsedSelection)
+    {
+        if (!TryGetSelectionAnchorCaret(selection, out _))
+        {
+            collapsedSelection = default;
+            return false;
+        }
+
+        collapsedSelection = selection.CollapseToAnchor();
+        return true;
+    }
+
+    /// <summary>
+    /// Tries to collapse the given selection to its focus endpoint.
+    /// </summary>
+    /// <param name="selection">The selection range to collapse.</param>
+    /// <param name="collapsedSelection">
+    /// When this method returns <see langword="true"/>, contains the resolved collapsed
+    /// selection range.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the focus resolves to a valid caret; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryCollapseSelectionToFocus(TextSelectionRange selection, out TextSelectionRange collapsedSelection)
+    {
+        if (!TryGetSelectionFocusCaret(selection, out _))
+        {
+            collapsedSelection = default;
+            return false;
+        }
+
+        collapsedSelection = selection.CollapseToFocus();
+        return true;
+    }
+
+    /// <summary>
+    /// Tries to collapse the given selection to its visual start.
+    /// </summary>
+    /// <param name="selection">The selection range to collapse.</param>
+    /// <param name="collapsedSelection">
+    /// When this method returns <see langword="true"/>, contains the resolved collapsed
+    /// selection range.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the visual start resolves to a valid caret; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryCollapseSelectionToStart(TextSelectionRange selection, out TextSelectionRange collapsedSelection)
+    {
+        if (!TryGetSelectionStartCaret(selection, out _))
+        {
+            collapsedSelection = default;
+            return false;
+        }
+
+        collapsedSelection = selection.CollapseToStart();
+        return true;
+    }
+
+    /// <summary>
+    /// Tries to collapse the given selection to its visual end.
+    /// </summary>
+    /// <param name="selection">The selection range to collapse.</param>
+    /// <param name="collapsedSelection">
+    /// When this method returns <see langword="true"/>, contains the resolved collapsed
+    /// selection range.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the visual end resolves to a valid caret; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryCollapseSelectionToEnd(TextSelectionRange selection, out TextSelectionRange collapsedSelection)
+    {
+        if (!TryGetSelectionEndCaret(selection, out _))
+        {
+            collapsedSelection = default;
+            return false;
+        }
+
+        collapsedSelection = selection.CollapseToEnd();
+        return true;
+    }
+
+    /// <summary>
     /// Tries to resolve the caret at the anchor end of the given selection.
     /// </summary>
     /// <param name="selection">The selection range to query.</param>

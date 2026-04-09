@@ -1255,6 +1255,42 @@ public class TextLayoutJobTests
     }
 
     [Fact]
+    public void TryCollapseSelectionToAnchorAndFocus_UsesSelectionEndpoints()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("AB\nCD".AsSpan(), 20f);
+        TextSelectionRange selection = new TextSelectionRange(4, 1);
+
+        Assert.True(result.TryCollapseSelectionToAnchor(selection, out TextSelectionRange anchorSelection));
+        Assert.True(result.TryCollapseSelectionToFocus(selection, out TextSelectionRange focusSelection));
+
+        Assert.True(anchorSelection.IsEmpty);
+        Assert.Equal(4, anchorSelection.AnchorTextIndex);
+        Assert.Equal(4, anchorSelection.FocusTextIndex);
+        Assert.True(focusSelection.IsEmpty);
+        Assert.Equal(1, focusSelection.AnchorTextIndex);
+        Assert.Equal(1, focusSelection.FocusTextIndex);
+    }
+
+    [Fact]
+    public void TryCollapseSelectionToStartAndEnd_UsesSortedExtent()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("AB\nCD".AsSpan(), 20f);
+        TextSelectionRange selection = new TextSelectionRange(4, 1);
+
+        Assert.True(result.TryCollapseSelectionToStart(selection, out TextSelectionRange startSelection));
+        Assert.True(result.TryCollapseSelectionToEnd(selection, out TextSelectionRange endSelection));
+
+        Assert.True(startSelection.IsEmpty);
+        Assert.Equal(1, startSelection.AnchorTextIndex);
+        Assert.Equal(1, startSelection.FocusTextIndex);
+        Assert.True(endSelection.IsEmpty);
+        Assert.Equal(4, endSelection.AnchorTextIndex);
+        Assert.Equal(4, endSelection.FocusTextIndex);
+    }
+
+    [Fact]
     public void TryGetSelectionCarets_PreserveAnchorAndFocusOrder()
     {
         FormeFont font = LoadTestFont();
