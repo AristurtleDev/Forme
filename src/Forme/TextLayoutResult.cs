@@ -731,6 +731,33 @@ public sealed class TextLayoutResult
     }
 
     /// <summary>
+    /// Tries to resolve a selection range from two points, preserving anchor and focus order.
+    /// </summary>
+    /// <param name="anchorX">The anchor X position, relative to the layout origin.</param>
+    /// <param name="anchorY">The anchor Y position, relative to the layout origin.</param>
+    /// <param name="focusX">The focus X position, relative to the layout origin.</param>
+    /// <param name="focusY">The focus Y position, relative to the layout origin.</param>
+    /// <param name="selection">
+    /// When this method returns <see langword="true"/>, contains the resolved selection range.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the layout contains at least one line; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetSelectionRangeFromPoints(float anchorX, float anchorY, float focusX, float focusY, out TextSelectionRange selection)
+    {
+        if (!TryGetNearestCaretFromPoint(anchorX, anchorY, out TextCaret anchorCaret)
+            || !TryGetNearestCaretFromPoint(focusX, focusY, out TextCaret focusCaret))
+        {
+            selection = default;
+            return false;
+        }
+
+        selection = new TextSelectionRange(anchorCaret.TextIndex, focusCaret.TextIndex);
+        return true;
+    }
+
+    /// <summary>
     /// Tries to resolve the nearest caret on the given line for the requested X position.
     /// </summary>
     /// <param name="lineIndex">The zero-based line index to query.</param>
@@ -1045,6 +1072,18 @@ public sealed class TextLayoutResult
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Returns suggested selection rectangles for the given selection range.
+    /// </summary>
+    /// <param name="selection">The selection range to visualize.</param>
+    /// <returns>
+    /// One rectangle per touched line, in display order. Empty selections return no rectangles.
+    /// </returns>
+    public IReadOnlyList<TextSelectionRect> GetSelectionRects(TextSelectionRange selection)
+    {
+        return GetSelectionRects(selection.Start, selection.End);
     }
 
     /// <summary>

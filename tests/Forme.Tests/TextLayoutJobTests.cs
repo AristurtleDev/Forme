@@ -893,6 +893,58 @@ public class TextLayoutJobTests
     }
 
     [Fact]
+    public void TryGetSelectionRangeFromPoints_PreservesAnchorAndFocusOrder()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("AB\nCD".AsSpan(), 20f);
+        GlyphPlacement anchorGlyph = result.Glyphs[2];
+        GlyphPlacement focusGlyph = result.Glyphs[0];
+
+        Assert.True(result.TryGetSelectionRangeFromPoints(
+            anchorGlyph.BaselineX,
+            anchorGlyph.BaselineY,
+            focusGlyph.BaselineX,
+            focusGlyph.BaselineY,
+            out TextSelectionRange selection));
+
+        Assert.Equal(3, selection.AnchorTextIndex);
+        Assert.Equal(0, selection.FocusTextIndex);
+        Assert.Equal(0, selection.Start);
+        Assert.Equal(3, selection.End);
+    }
+
+    [Fact]
+    public void TryGetSelectionRangeFromPoints_UsesNearestCaretsOutsideLayout()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("AB\nCD".AsSpan(), 20f);
+
+        Assert.True(result.TryGetSelectionRangeFromPoints(
+            result.Lines[0].LogicalBounds.X - 50f,
+            result.Lines[0].LogicalBounds.Y - 10f,
+            result.Lines[1].LogicalBounds.X2 + 50f,
+            result.Lines[1].LogicalBounds.Y2 + 10f,
+            out TextSelectionRange selection));
+
+        Assert.Equal(0, selection.Start);
+        Assert.Equal(5, selection.End);
+    }
+
+    [Fact]
+    public void GetSelectionRects_SelectionRange_UsesSortedExtent()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("ABCD".AsSpan(), 20f);
+        TextSelectionRange selection = new TextSelectionRange(3, 1);
+
+        IReadOnlyList<TextSelectionRect> rects = result.GetSelectionRects(selection);
+
+        Assert.Single(rects);
+        Assert.Equal(1, rects[0].TextStart);
+        Assert.Equal(2, rects[0].TextLength);
+    }
+
+    [Fact]
     public void TryGetAdjacentLineCaret_UsesCurrentCaretXByDefault()
     {
         FormeFont font = LoadTestFont();
