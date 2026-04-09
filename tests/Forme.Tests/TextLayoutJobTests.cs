@@ -367,4 +367,77 @@ public class TextLayoutJobTests
         Assert.Equal(result.Lines[1].LogicalBounds.Y, result.BackgroundRects[1].Bounds.Y);
         Assert.Equal(result.Lines[1].LogicalBounds.Y2, result.BackgroundRects[1].Bounds.Y2);
     }
+
+    [Fact]
+    public void LayoutText_JobWithAdjacentUnderlineRuns_MergesUnderlineSegmentsPerLine()
+    {
+        FormeFont font = LoadTestFont();
+        TextColor color = new TextColor(200, 210, 220, 255);
+        TextFormat first = new TextFormat(font, 20f)
+        {
+            Color = color,
+            Decorations = TextDecorations.Underline
+        };
+        TextFormat second = new TextFormat(font, 20f)
+        {
+            Color = color,
+            Decorations = TextDecorations.Underline
+        };
+        TextLayoutJob job = new TextLayoutJob(
+            "ABCD",
+            new TextSection[]
+            {
+                new TextSection(0, 2, first),
+                new TextSection(2, 2, second)
+            });
+
+        TextLayoutResult result = font.LayoutText(job);
+
+        Assert.Single(result.UnderlineLines);
+        Assert.Equal(TextDecorations.Underline, result.UnderlineLines[0].Decoration);
+        Assert.Equal(color, result.UnderlineLines[0].Color);
+        Assert.Equal(0, result.UnderlineLines[0].TextStart);
+        Assert.Equal(4, result.UnderlineLines[0].TextLength);
+        Assert.Equal(0, result.UnderlineLines[0].LineIndex);
+        Assert.Equal(result.Lines[0].LogicalBounds.X, result.UnderlineLines[0].X);
+        Assert.Equal(result.Lines[0].LogicalBounds.X2, result.UnderlineLines[0].X2);
+        Assert.Equal(result.Lines[0].LogicalBounds.Y2, result.UnderlineLines[0].Y);
+        Assert.Equal(1f, result.UnderlineLines[0].Thickness);
+    }
+
+    [Fact]
+    public void LayoutText_JobWithBaselineShiftedUnderline_KeepsSeparateUnderlineSegment()
+    {
+        FormeFont font = LoadTestFont();
+        TextColor color = new TextColor(180, 120, 80, 255);
+        TextFormat normal = new TextFormat(font, 20f)
+        {
+            Color = color,
+            Decorations = TextDecorations.Underline
+        };
+        TextFormat lowered = new TextFormat(font, 20f)
+        {
+            Color = color,
+            Decorations = TextDecorations.Underline,
+            BaselineShift = 4f
+        };
+        TextLayoutJob job = new TextLayoutJob(
+            "ABCD",
+            new TextSection[]
+            {
+                new TextSection(0, 2, normal),
+                new TextSection(2, 2, lowered)
+            });
+
+        TextLayoutResult result = font.LayoutText(job);
+
+        Assert.Equal(2, result.UnderlineLines.Count);
+        Assert.Equal(result.Glyphs[1].LogicalBounds.Y2, result.UnderlineLines[0].Y);
+        Assert.Equal(result.Glyphs[2].LogicalBounds.Y2, result.UnderlineLines[1].Y);
+        Assert.True(result.UnderlineLines[1].Y > result.UnderlineLines[0].Y);
+        Assert.Equal(0, result.UnderlineLines[0].TextStart);
+        Assert.Equal(2, result.UnderlineLines[0].TextLength);
+        Assert.Equal(2, result.UnderlineLines[1].TextStart);
+        Assert.Equal(2, result.UnderlineLines[1].TextLength);
+    }
 }

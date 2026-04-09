@@ -13,6 +13,7 @@ namespace Forme;
 public sealed class TextLayoutResult
 {
     private List<TextBackgroundRect>? _backgroundRects;
+    private List<TextDecorationLine>? _underlineLines;
 
     /// <summary>
     /// Gets an empty layout result with no lines, no glyphs, and empty bounds.
@@ -54,6 +55,19 @@ public sealed class TextLayoutResult
         {
             _backgroundRects ??= BuildBackgroundRects();
             return _backgroundRects;
+        }
+    }
+
+    /// <summary>
+    /// Gets suggested underline segments for runs decorated with
+    /// <see cref="TextDecorations.Underline"/>.
+    /// </summary>
+    public IReadOnlyList<TextDecorationLine> UnderlineLines
+    {
+        get
+        {
+            _underlineLines ??= BuildDecorationLines(TextDecorations.Underline);
+            return _underlineLines;
         }
     }
 
@@ -519,5 +533,89 @@ public sealed class TextLayoutResult
                 previous.Bounds.Y,
                 Math.Max(previous.Bounds.X2, rect.Bounds.X2),
                 previous.Bounds.Y2));
+    }
+
+    private List<TextDecorationLine> BuildDecorationLines(TextDecorations decoration)
+    {
+        if (Runs.Count == 0 || Glyphs.Count == 0)
+        {
+            return [];
+        }
+
+        List<TextDecorationLine> result = new();
+        for (int runIndex = 0; runIndex < Runs.Count; runIndex++)
+        {
+            TextLayoutRun run = Runs[runIndex];
+            if ((run.Decorations & decoration) == 0 || run.GlyphCount == 0)
+            {
+                continue;
+            }
+
+            for (int glyphIndex = run.GlyphStart; glyphIndex < run.GlyphEnd; glyphIndex++)
+            {
+                GlyphPlacement glyph = Glyphs[glyphIndex];
+                float y = GetDecorationY(glyph, decoration);
+                TextDecorationLine line = new TextDecorationLine(
+                    decoration,
+                    run.Format.Color,
+                    glyph.Index,
+                    glyph.TextLength,
+                    glyph.LineIndex,
+                    glyph.BaselineX,
+                    glyph.LogicalBounds.X2,
+                    y,
+                    1f);
+                AddOrMergeDecorationLine(result, line);
+            }
+        }
+
+        return result;
+    }
+
+    private static float GetDecorationY(GlyphPlacement glyph, TextDecorations decoration)
+    {
+        return decoration switch
+        {
+            TextDecorations.Underline => glyph.LogicalBounds.Y2,
+            TextDecorations.Strikethrough => glyph.LogicalBounds.Y + glyph.LogicalBounds.Height * 0.5f,
+            _ => glyph.LogicalBounds.Y2
+        };
+    }
+
+    private static void AddOrMergeDecorationLine(List<TextDecorationLine> lines, TextDecorationLine line)
+    {
+        if (line.Width <= 0f)
+        {
+            return;
+        }
+
+        if (lines.Count == 0)
+        {
+            lines.Add(line);
+            return;
+        }
+
+        TextDecorationLine previous = lines[lines.Count - 1];
+        if (previous.Decoration != line.Decoration
+            || previous.LineIndex != line.LineIndex
+            || previous.Color != line.Color
+            || previous.Y != line.Y
+            || previous.Thickness != line.Thickness
+            || line.X > previous.X2)
+        {
+            lines.Add(line);
+            return;
+        }
+
+        lines[lines.Count - 1] = new TextDecorationLine(
+            previous.Decoration,
+            previous.Color,
+            previous.TextStart,
+            line.TextEnd - previous.TextStart,
+            previous.LineIndex,
+            previous.X,
+            Math.Max(previous.X2, line.X2),
+            previous.Y,
+            previous.Thickness);
     }
 }
