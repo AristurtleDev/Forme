@@ -1199,6 +1199,54 @@ public sealed class TextLayoutResult
     }
 
     /// <summary>
+    /// Tries to normalize the given selection to forward visual order.
+    /// </summary>
+    /// <param name="selection">The selection range to normalize.</param>
+    /// <param name="normalizedSelection">
+    /// When this method returns <see langword="true"/>, contains the resolved forward-ordered
+    /// selection range.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when both visual boundaries resolve to valid carets; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryNormalizeSelectionForward(TextSelectionRange selection, out TextSelectionRange normalizedSelection)
+    {
+        if (!TryGetSelectionBoundaryCarets(selection, out _, out _))
+        {
+            normalizedSelection = default;
+            return false;
+        }
+
+        normalizedSelection = selection.NormalizeForward();
+        return true;
+    }
+
+    /// <summary>
+    /// Tries to normalize the given selection to backward visual order.
+    /// </summary>
+    /// <param name="selection">The selection range to normalize.</param>
+    /// <param name="normalizedSelection">
+    /// When this method returns <see langword="true"/>, contains the resolved backward-ordered
+    /// selection range.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when both visual boundaries resolve to valid carets; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryNormalizeSelectionBackward(TextSelectionRange selection, out TextSelectionRange normalizedSelection)
+    {
+        if (!TryGetSelectionBoundaryCarets(selection, out _, out _))
+        {
+            normalizedSelection = default;
+            return false;
+        }
+
+        normalizedSelection = selection.NormalizeBackward();
+        return true;
+    }
+
+    /// <summary>
     /// Tries to resolve the caret at the anchor end of the given selection.
     /// </summary>
     /// <param name="selection">The selection range to query.</param>

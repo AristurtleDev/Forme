@@ -1291,6 +1291,24 @@ public class TextLayoutJobTests
     }
 
     [Fact]
+    public void TryNormalizeSelection_UsesRequestedDirection()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("AB\nCD".AsSpan(), 20f);
+        TextSelectionRange selection = new TextSelectionRange(4, 1);
+
+        Assert.True(result.TryNormalizeSelectionForward(selection, out TextSelectionRange forwardSelection));
+        Assert.True(result.TryNormalizeSelectionBackward(selection, out TextSelectionRange backwardSelection));
+
+        Assert.True(forwardSelection.IsForward);
+        Assert.Equal(1, forwardSelection.AnchorTextIndex);
+        Assert.Equal(4, forwardSelection.FocusTextIndex);
+        Assert.True(backwardSelection.IsBackward);
+        Assert.Equal(4, backwardSelection.AnchorTextIndex);
+        Assert.Equal(1, backwardSelection.FocusTextIndex);
+    }
+
+    [Fact]
     public void TryGetSelectionCarets_PreserveAnchorAndFocusOrder()
     {
         FormeFont font = LoadTestFont();
