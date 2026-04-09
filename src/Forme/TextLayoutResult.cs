@@ -2,6 +2,7 @@
 // Licensed under the MIT license.
 // See LICENSE file in the project root for full license information.
 
+using System;
 using System.Collections.Generic;
 
 namespace Forme;
@@ -11,6 +12,8 @@ namespace Forme;
 /// </summary>
 public sealed class TextLayoutResult
 {
+    private List<TextBackgroundRect>? _backgroundRects;
+
     /// <summary>
     /// Gets an empty layout result with no lines, no glyphs, and empty bounds.
     /// </summary>
@@ -40,6 +43,19 @@ public sealed class TextLayoutResult
     /// Gets the laid-out glyph placements in display order.
     /// </summary>
     public IReadOnlyList<GlyphPlacement> Glyphs { get; }
+
+    /// <summary>
+    /// Gets suggested row-level background rectangles for runs decorated with
+    /// <see cref="TextDecorations.Background"/>.
+    /// </summary>
+    public IReadOnlyList<TextBackgroundRect> BackgroundRects
+    {
+        get
+        {
+            _backgroundRects ??= BuildBackgroundRects();
+            return _backgroundRects;
+        }
+    }
 
     internal TextLayoutResult(
         FormeTextBounds logicalBounds,
@@ -420,5 +436,88 @@ public sealed class TextLayoutResult
         }
 
         return 0f;
+    }
+
+    private List<TextBackgroundRect> BuildBackgroundRects()
+    {
+        if (Runs.Count == 0 || Lines.Count == 0)
+        {
+            return [];
+        }
+
+        List<TextBackgroundRect> result = new();
+        for (int runIndex = 0; runIndex < Runs.Count; runIndex++)
+        {
+            TextLayoutRun run = Runs[runIndex];
+            if ((run.Decorations & TextDecorations.Background) == 0
+                || run.Format.BackgroundColor.A == 0
+                || run.TextLength == 0)
+            {
+                continue;
+            }
+
+            for (int lineIndex = run.LineStart; lineIndex < run.LineEnd; lineIndex++)
+            {
+                TextLayoutLine line = Lines[lineIndex];
+                int segmentStart = Math.Max(run.TextStart, line.TextStart);
+                int segmentEnd = Math.Min(run.TextEnd, line.TextEnd);
+                if (segmentEnd <= segmentStart)
+                {
+                    continue;
+                }
+
+                FormeTextBounds bounds = new FormeTextBounds(
+                    GetCaretXForLine(line, segmentStart),
+                    line.LogicalBounds.Y,
+                    GetCaretXForLine(line, segmentEnd),
+                    line.LogicalBounds.Y2);
+                if (bounds.Width <= 0f || bounds.Height <= 0f)
+                {
+                    continue;
+                }
+
+                AddOrMergeBackgroundRect(
+                    result,
+                    new TextBackgroundRect(
+                        run.Format.BackgroundColor,
+                        segmentStart,
+                        segmentEnd - segmentStart,
+                        lineIndex,
+                        bounds));
+            }
+        }
+
+        return result;
+    }
+
+    private static void AddOrMergeBackgroundRect(List<TextBackgroundRect> rects, TextBackgroundRect rect)
+    {
+        if (rects.Count == 0)
+        {
+            rects.Add(rect);
+            return;
+        }
+
+        TextBackgroundRect previous = rects[rects.Count - 1];
+        if (previous.LineIndex != rect.LineIndex
+            || previous.Color != rect.Color
+            || previous.Bounds.Y != rect.Bounds.Y
+            || previous.Bounds.Y2 != rect.Bounds.Y2
+            || rect.Bounds.X > previous.Bounds.X2)
+        {
+            rects.Add(rect);
+            return;
+        }
+
+        rects[rects.Count - 1] = new TextBackgroundRect(
+            previous.Color,
+            previous.TextStart,
+            rect.TextEnd - previous.TextStart,
+            previous.LineIndex,
+            new FormeTextBounds(
+                previous.Bounds.X,
+                previous.Bounds.Y,
+                Math.Max(previous.Bounds.X2, rect.Bounds.X2),
+                previous.Bounds.Y2));
     }
 }

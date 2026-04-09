@@ -302,4 +302,69 @@ public class TextLayoutJobTests
         Assert.Equal(normalResult.Lines[1].BaselineY, shiftedResult.Lines[1].BaselineY);
         Assert.True(shiftedResult.Lines[0].LogicalBounds.Y2 > normalResult.Lines[0].LogicalBounds.Y2);
     }
+
+    [Fact]
+    public void LayoutText_JobWithAdjacentBackgroundRuns_MergesBackgroundRectsPerLine()
+    {
+        FormeFont font = LoadTestFont();
+        TextColor background = new TextColor(20, 30, 40, 255);
+        TextFormat first = new TextFormat(font, 20f)
+        {
+            Color = new TextColor(255, 0, 0),
+            BackgroundColor = background,
+            Decorations = TextDecorations.Background
+        };
+        TextFormat second = new TextFormat(font, 20f)
+        {
+            Color = new TextColor(0, 255, 0),
+            BackgroundColor = background,
+            Decorations = TextDecorations.Background
+        };
+        TextLayoutJob job = new TextLayoutJob(
+            "ABCD",
+            new TextSection[]
+            {
+                new TextSection(0, 2, first),
+                new TextSection(2, 2, second)
+            });
+
+        TextLayoutResult result = font.LayoutText(job);
+
+        Assert.Single(result.BackgroundRects);
+        Assert.Equal(background, result.BackgroundRects[0].Color);
+        Assert.Equal(0, result.BackgroundRects[0].TextStart);
+        Assert.Equal(4, result.BackgroundRects[0].TextLength);
+        Assert.Equal(0, result.BackgroundRects[0].LineIndex);
+        Assert.Equal(result.Lines[0].LogicalBounds.Y, result.BackgroundRects[0].Bounds.Y);
+        Assert.Equal(result.Lines[0].LogicalBounds.Y2, result.BackgroundRects[0].Bounds.Y2);
+        Assert.Equal(result.Lines[0].LogicalBounds.X, result.BackgroundRects[0].Bounds.X);
+        Assert.Equal(result.Lines[0].LogicalBounds.X2, result.BackgroundRects[0].Bounds.X2);
+    }
+
+    [Fact]
+    public void LayoutText_JobWithBackgroundDecoration_SplitsBackgroundRectsAcrossLines()
+    {
+        FormeFont font = LoadTestFont();
+        TextColor background = new TextColor(50, 60, 70, 255);
+        TextFormat format = new TextFormat(font, 20f)
+        {
+            BackgroundColor = background,
+            Decorations = TextDecorations.Background
+        };
+        TextLayoutJob job = TextLayoutJob.CreatePlain("AB\nCD", format);
+
+        TextLayoutResult result = font.LayoutText(job);
+
+        Assert.Equal(2, result.BackgroundRects.Count);
+        Assert.Equal(0, result.BackgroundRects[0].LineIndex);
+        Assert.Equal(0, result.BackgroundRects[0].TextStart);
+        Assert.Equal(2, result.BackgroundRects[0].TextLength);
+        Assert.Equal(result.Lines[0].LogicalBounds.Y, result.BackgroundRects[0].Bounds.Y);
+        Assert.Equal(result.Lines[0].LogicalBounds.Y2, result.BackgroundRects[0].Bounds.Y2);
+        Assert.Equal(1, result.BackgroundRects[1].LineIndex);
+        Assert.Equal(3, result.BackgroundRects[1].TextStart);
+        Assert.Equal(2, result.BackgroundRects[1].TextLength);
+        Assert.Equal(result.Lines[1].LogicalBounds.Y, result.BackgroundRects[1].Bounds.Y);
+        Assert.Equal(result.Lines[1].LogicalBounds.Y2, result.BackgroundRects[1].Bounds.Y2);
+    }
 }
