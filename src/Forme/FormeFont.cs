@@ -592,11 +592,6 @@ public sealed class FormeFont
             throw new ArgumentException("This layout path currently requires all sections to use the same FormeFont instance.", paramName);
         }
 
-        if (section.Format.LineHeightPixels.HasValue)
-        {
-            throw new ArgumentException("Per-section line-height overrides are not supported yet.", paramName);
-        }
-
         if (section.Format.BaselineShift != 0f)
         {
             throw new ArgumentException("Per-section baseline shifts are not supported yet.", paramName);
@@ -1678,11 +1673,12 @@ public sealed class FormeFont
             TextFormat format = job.Sections[i].Format;
             ScaledFontMetrics metrics = GetScaledMetrics(format.SizePixels);
             float scale = format.SizePixels / Math.Max(1, Metrics.UnitsPerEm);
+            float lineHeight = format.LineHeightPixels ?? metrics.LineHeight;
             result[i] = new SectionLayoutInfo(
                 format,
                 metrics,
                 scale,
-                metrics.LineHeight + job.LayoutOptions.LineSpacing,
+                lineHeight + job.LayoutOptions.LineSpacing,
                 format.CharacterSpacing + job.LayoutOptions.CharacterSpacing);
         }
 

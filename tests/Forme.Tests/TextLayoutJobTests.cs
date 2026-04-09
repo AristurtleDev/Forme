@@ -199,4 +199,54 @@ public class TextLayoutJobTests
 
         Assert.True(looseResult.Runs[0].LogicalBounds.Width > compactResult.Runs[0].LogicalBounds.Width);
     }
+
+    [Fact]
+    public void LayoutText_JobWithSectionLineHeightOverride_UsesOverrideForLineHeight()
+    {
+        FormeFont font = LoadTestFont();
+        TextFormat normal = new TextFormat(font, 20f);
+        TextFormat tall = new TextFormat(font, 20f)
+        {
+            LineHeightPixels = 40f
+        };
+        TextLayoutJob job = new TextLayoutJob(
+            "ABCD",
+            new TextSection[]
+            {
+                new TextSection(0, 2, normal),
+                new TextSection(2, 2, tall)
+            });
+
+        TextLayoutResult result = font.LayoutText(job);
+
+        Assert.Single(result.Lines);
+        Assert.Equal(40f, result.Lines[0].LineHeight);
+        Assert.Equal(40f, result.Runs[1].Format.LineHeightPixels);
+    }
+
+    [Fact]
+    public void LayoutText_JobWithSectionLineHeightOverride_AffectsFollowingBaseline()
+    {
+        FormeFont font = LoadTestFont();
+        TextFormat tall = new TextFormat(font, 20f)
+        {
+            LineHeightPixels = 40f
+        };
+        TextFormat normal = new TextFormat(font, 20f);
+        TextLayoutJob job = new TextLayoutJob(
+            "AB\nCD",
+            new TextSection[]
+            {
+                new TextSection(0, 2, tall),
+                new TextSection(2, 1, tall),
+                new TextSection(3, 2, normal)
+            });
+
+        TextLayoutResult result = font.LayoutText(job);
+
+        Assert.Equal(2, result.Lines.Count);
+        Assert.Equal(40f, result.Lines[0].LineHeight);
+        Assert.Equal(40f, result.Lines[1].BaselineY);
+        Assert.True(result.Lines[1].LineHeight < result.Lines[0].LineHeight);
+    }
 }
