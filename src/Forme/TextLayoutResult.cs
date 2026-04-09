@@ -803,6 +803,112 @@ public sealed class TextLayoutResult
     }
 
     /// <summary>
+    /// Tries to resolve a forward-ordered selection range from visual start and end UTF-16
+    /// indices.
+    /// </summary>
+    /// <param name="startTextIndex">The zero-based UTF-16 visual start index to resolve.</param>
+    /// <param name="endTextIndex">The zero-based UTF-16 visual end index to resolve.</param>
+    /// <param name="selection">
+    /// When this method returns <see langword="true"/>, contains the resolved forward selection.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when both boundaries resolve to valid caret positions; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryCreateForwardSelectionFromTextIndices(int startTextIndex, int endTextIndex, out TextSelectionRange selection)
+    {
+        if (!TryGetCaretFromTextIndex(startTextIndex, out _)
+            || !TryGetCaretFromTextIndex(endTextIndex, out _))
+        {
+            selection = default;
+            return false;
+        }
+
+        selection = new TextSelectionRange(startTextIndex, endTextIndex).NormalizeForward();
+        return true;
+    }
+
+    /// <summary>
+    /// Tries to resolve a backward-ordered selection range from visual start and end UTF-16
+    /// indices.
+    /// </summary>
+    /// <param name="startTextIndex">The zero-based UTF-16 visual start index to resolve.</param>
+    /// <param name="endTextIndex">The zero-based UTF-16 visual end index to resolve.</param>
+    /// <param name="selection">
+    /// When this method returns <see langword="true"/>, contains the resolved backward selection.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when both boundaries resolve to valid caret positions; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryCreateBackwardSelectionFromTextIndices(int startTextIndex, int endTextIndex, out TextSelectionRange selection)
+    {
+        if (!TryGetCaretFromTextIndex(startTextIndex, out _)
+            || !TryGetCaretFromTextIndex(endTextIndex, out _))
+        {
+            selection = default;
+            return false;
+        }
+
+        selection = new TextSelectionRange(startTextIndex, endTextIndex).NormalizeBackward();
+        return true;
+    }
+
+    /// <summary>
+    /// Tries to resolve a forward-ordered selection range from visual start and end points.
+    /// </summary>
+    /// <param name="startX">The visual start X position, relative to the layout origin.</param>
+    /// <param name="startY">The visual start Y position, relative to the layout origin.</param>
+    /// <param name="endX">The visual end X position, relative to the layout origin.</param>
+    /// <param name="endY">The visual end Y position, relative to the layout origin.</param>
+    /// <param name="selection">
+    /// When this method returns <see langword="true"/>, contains the resolved forward selection.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the layout contains nearest carets for both points;
+    /// otherwise, <see langword="false"/>.
+    /// </returns>
+    public bool TryCreateForwardSelectionFromPoints(float startX, float startY, float endX, float endY, out TextSelectionRange selection)
+    {
+        if (!TryGetNearestCaretFromPoint(startX, startY, out TextCaret startCaret)
+            || !TryGetNearestCaretFromPoint(endX, endY, out TextCaret endCaret))
+        {
+            selection = default;
+            return false;
+        }
+
+        selection = new TextSelectionRange(startCaret.TextIndex, endCaret.TextIndex).NormalizeForward();
+        return true;
+    }
+
+    /// <summary>
+    /// Tries to resolve a backward-ordered selection range from visual start and end points.
+    /// </summary>
+    /// <param name="startX">The visual start X position, relative to the layout origin.</param>
+    /// <param name="startY">The visual start Y position, relative to the layout origin.</param>
+    /// <param name="endX">The visual end X position, relative to the layout origin.</param>
+    /// <param name="endY">The visual end Y position, relative to the layout origin.</param>
+    /// <param name="selection">
+    /// When this method returns <see langword="true"/>, contains the resolved backward selection.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the layout contains nearest carets for both points;
+    /// otherwise, <see langword="false"/>.
+    /// </returns>
+    public bool TryCreateBackwardSelectionFromPoints(float startX, float startY, float endX, float endY, out TextSelectionRange selection)
+    {
+        if (!TryGetNearestCaretFromPoint(startX, startY, out TextCaret startCaret)
+            || !TryGetNearestCaretFromPoint(endX, endY, out TextCaret endCaret))
+        {
+            selection = default;
+            return false;
+        }
+
+        selection = new TextSelectionRange(startCaret.TextIndex, endCaret.TextIndex).NormalizeBackward();
+        return true;
+    }
+
+    /// <summary>
     /// Tries to resolve a selection range from two points, preserving anchor and focus order.
     /// </summary>
     /// <param name="anchorX">The anchor X position, relative to the layout origin.</param>
