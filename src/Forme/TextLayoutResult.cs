@@ -945,6 +945,65 @@ public sealed class TextLayoutResult
     }
 
     /// <summary>
+    /// Tries to resolve the caret at the visual start of the given selection.
+    /// </summary>
+    /// <param name="selection">The selection range to query.</param>
+    /// <param name="caret">
+    /// When this method returns <see langword="true"/>, contains the resolved start caret.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the start resolves to a valid caret; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetSelectionStartCaret(TextSelectionRange selection, out TextCaret caret)
+    {
+        return TryGetCaretFromTextIndex(selection.Start, out caret);
+    }
+
+    /// <summary>
+    /// Tries to resolve the caret at the visual end of the given selection.
+    /// </summary>
+    /// <param name="selection">The selection range to query.</param>
+    /// <param name="caret">
+    /// When this method returns <see langword="true"/>, contains the resolved end caret.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the end resolves to a valid caret; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetSelectionEndCaret(TextSelectionRange selection, out TextCaret caret)
+    {
+        return TryGetCaretFromTextIndex(selection.End, out caret);
+    }
+
+    /// <summary>
+    /// Tries to resolve both visual boundary carets of the given selection in sorted order.
+    /// </summary>
+    /// <param name="selection">The selection range to query.</param>
+    /// <param name="startCaret">
+    /// When this method returns <see langword="true"/>, contains the resolved start caret.
+    /// </param>
+    /// <param name="endCaret">
+    /// When this method returns <see langword="true"/>, contains the resolved end caret.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when both boundaries resolve to valid carets; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetSelectionBoundaryCarets(TextSelectionRange selection, out TextCaret startCaret, out TextCaret endCaret)
+    {
+        if (!TryGetSelectionStartCaret(selection, out startCaret)
+            || !TryGetSelectionEndCaret(selection, out endCaret))
+        {
+            startCaret = default;
+            endCaret = default;
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// Tries to resolve the word-like selection range nearest the given UTF-16 index.
     /// </summary>
     /// <param name="textIndex">The zero-based UTF-16 index to query.</param>

@@ -75,4 +75,22 @@ public readonly struct TextSelectionRange
     {
         return new TextSelectionRange(FocusTextIndex, FocusTextIndex);
     }
+
+    /// <summary>
+    /// Returns an empty selection range collapsed to this range's visual start.
+    /// </summary>
+    /// <returns>The collapsed selection range.</returns>
+    public TextSelectionRange CollapseToStart()
+    {
+        return new TextSelectionRange(Start, Start);
+    }
+
+    /// <summary>
+    /// Returns an empty selection range collapsed to this range's visual end.
+    /// </summary>
+    /// <returns>The collapsed selection range.</returns>
+    public TextSelectionRange CollapseToEnd()
+    {
+        return new TextSelectionRange(End, End);
+    }
 }

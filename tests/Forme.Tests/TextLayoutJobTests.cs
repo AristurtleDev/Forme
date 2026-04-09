@@ -1107,6 +1107,22 @@ public class TextLayoutJobTests
     }
 
     [Fact]
+    public void TextSelectionRange_CollapseToExtentHelpers_ReturnEmptySelectionsAtSortedEndpoints()
+    {
+        TextSelectionRange selection = new TextSelectionRange(5, 2);
+
+        TextSelectionRange collapsedToStart = selection.CollapseToStart();
+        TextSelectionRange collapsedToEnd = selection.CollapseToEnd();
+
+        Assert.True(collapsedToStart.IsEmpty);
+        Assert.Equal(2, collapsedToStart.AnchorTextIndex);
+        Assert.Equal(2, collapsedToStart.FocusTextIndex);
+        Assert.True(collapsedToEnd.IsEmpty);
+        Assert.Equal(5, collapsedToEnd.AnchorTextIndex);
+        Assert.Equal(5, collapsedToEnd.FocusTextIndex);
+    }
+
+    [Fact]
     public void TryGetSelectionCarets_PreserveAnchorAndFocusOrder()
     {
         FormeFont font = LoadTestFont();
@@ -1123,6 +1139,25 @@ public class TextLayoutJobTests
         Assert.Equal(0, focusCaret.LineIndex);
         Assert.Equal(anchorCaret.TextIndex, combinedAnchorCaret.TextIndex);
         Assert.Equal(focusCaret.TextIndex, combinedFocusCaret.TextIndex);
+    }
+
+    [Fact]
+    public void TryGetSelectionBoundaryCarets_UseSortedSelectionExtent()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("AB\nCD".AsSpan(), 20f);
+        TextSelectionRange selection = new TextSelectionRange(3, 0);
+
+        Assert.True(result.TryGetSelectionStartCaret(selection, out TextCaret startCaret));
+        Assert.True(result.TryGetSelectionEndCaret(selection, out TextCaret endCaret));
+        Assert.True(result.TryGetSelectionBoundaryCarets(selection, out TextCaret combinedStartCaret, out TextCaret combinedEndCaret));
+
+        Assert.Equal(0, startCaret.TextIndex);
+        Assert.Equal(0, startCaret.LineIndex);
+        Assert.Equal(3, endCaret.TextIndex);
+        Assert.Equal(1, endCaret.LineIndex);
+        Assert.Equal(startCaret.TextIndex, combinedStartCaret.TextIndex);
+        Assert.Equal(endCaret.TextIndex, combinedEndCaret.TextIndex);
     }
 
     [Fact]
