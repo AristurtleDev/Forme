@@ -345,7 +345,8 @@ public sealed class FormeFont
 
         TextFormat baseFormat = ValidateLayoutJob(job);
         TextLayoutResult baseResult = LayoutTextCore(job, baseFormat);
-        return ApplySectionsToLayout(baseResult, job.Sections);
+        TextLayoutResult result = ApplySectionsToLayout(baseResult, job.Sections);
+        return ApplyGeometrySnap(result, job.LayoutOptions.GeometrySnap);
     }
 
     /// <summary>
@@ -533,7 +534,8 @@ public sealed class FormeFont
             new TextLayoutRun(runFormat, 0, text.Length, 0, placements.Count, logicalBounds, visualBoundsResult, 0, lines.Count)
         ];
 
-        return new TextLayoutResult(logicalBounds, visualBoundsResult, lines, runs, placements);
+        TextLayoutResult result = new TextLayoutResult(logicalBounds, visualBoundsResult, lines, runs, placements);
+        return ApplyGeometrySnap(result, options.GeometrySnap);
     }
 
     /// <summary>
@@ -1072,6 +1074,88 @@ public sealed class FormeFont
         ];
 
         return new TextLayoutResult(logicalBounds, visualBoundsResult, lines, runs, placements);
+    }
+
+    private static TextLayoutResult ApplyGeometrySnap(TextLayoutResult result, TextGeometrySnap geometrySnap)
+    {
+        if (geometrySnap == TextGeometrySnap.None)
+        {
+            return result;
+        }
+
+        List<TextLayoutLine> lines = new(result.Lines.Count);
+        for (int i = 0; i < result.Lines.Count; i++)
+        {
+            TextLayoutLine line = result.Lines[i];
+            lines.Add(new TextLayoutLine(
+                line.TextStart,
+                line.TextLength,
+                Snap(line.BaselineY),
+                Snap(line.LineHeight),
+                Snap(line.Ascent),
+                Snap(line.Descent),
+                Snap(line.Width),
+                Snap(line.LogicalBounds),
+                Snap(line.VisualBounds),
+                line.GlyphStart,
+                line.GlyphCount,
+                line.RunStart,
+                line.RunCount));
+        }
+
+        List<TextLayoutRun> runs = new(result.Runs.Count);
+        for (int i = 0; i < result.Runs.Count; i++)
+        {
+            TextLayoutRun run = result.Runs[i];
+            runs.Add(new TextLayoutRun(
+                run.Format,
+                run.TextStart,
+                run.TextLength,
+                run.GlyphStart,
+                run.GlyphCount,
+                Snap(run.LogicalBounds),
+                Snap(run.VisualBounds),
+                run.LineStart,
+                run.LineCount));
+        }
+
+        List<GlyphPlacement> glyphs = new(result.Glyphs.Count);
+        for (int i = 0; i < result.Glyphs.Count; i++)
+        {
+            GlyphPlacement glyph = result.Glyphs[i];
+            glyphs.Add(new GlyphPlacement(
+                glyph.Index,
+                glyph.TextLength,
+                glyph.CodePoint,
+                glyph.LineIndex,
+                glyph.RunIndex,
+                Snap(glyph.BaselineX),
+                Snap(glyph.BaselineY),
+                Snap(glyph.LogicalBounds),
+                Snap(glyph.VisualBounds),
+                Snap(glyph.AdvanceWidth)));
+        }
+
+        return new TextLayoutResult(
+            Snap(result.LogicalBounds),
+            Snap(result.VisualBounds),
+            lines,
+            runs,
+            glyphs);
+    }
+
+    private static float Snap(float value)
+    {
+        return MathF.Round(value);
+    }
+
+    private static FormeTextBounds Snap(FormeTextBounds bounds)
+    {
+        return new FormeTextBounds(
+            Snap(bounds.X),
+            Snap(bounds.Y),
+            Snap(bounds.X2),
+            Snap(bounds.Y2));
     }
 
     private static FormeTextBounds BuildLogicalBounds(List<TextLayoutLine> lines, float maxLineWidth)

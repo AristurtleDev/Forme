@@ -563,4 +563,59 @@ public class TextLayoutJobTests
         Assert.Equal(result.Glyphs[2].VisualBounds, result.GlyphDebugBounds[2].VisualBounds);
         Assert.True(result.GlyphDebugBounds[2].LogicalBounds.Y < result.GlyphDebugBounds[0].LogicalBounds.Y);
     }
+
+    [Fact]
+    public void LayoutText_WithPixelSnap_RoundsPlainLayoutGeometry()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutOptions unsnappedOptions = new TextLayoutOptions
+        {
+            CharacterSpacing = 0.25f,
+            LineSpacing = 0.25f
+        };
+        TextLayoutOptions snappedOptions = new TextLayoutOptions
+        {
+            CharacterSpacing = 0.25f,
+            LineSpacing = 0.25f,
+            GeometrySnap = TextGeometrySnap.Pixel
+        };
+
+        TextLayoutResult unsnapped = font.LayoutText("AB\nCD".AsSpan(), 17f, in unsnappedOptions);
+        TextLayoutResult snapped = font.LayoutText("AB\nCD".AsSpan(), 17f, in snappedOptions);
+
+        Assert.Equal(MathF.Round(unsnapped.Lines[1].BaselineY), snapped.Lines[1].BaselineY);
+        Assert.Equal(MathF.Round(unsnapped.Glyphs[1].BaselineX), snapped.Glyphs[1].BaselineX);
+        Assert.Equal(MathF.Round(unsnapped.Glyphs[2].VisualBounds.Y), snapped.Glyphs[2].VisualBounds.Y);
+        Assert.Equal(MathF.Round(unsnapped.LogicalBounds.X2), snapped.LogicalBounds.X2);
+    }
+
+    [Fact]
+    public void LayoutText_JobWithPixelSnap_RoundsDerivedGeometryOutputs()
+    {
+        FormeFont font = LoadTestFont();
+        TextColor color = new TextColor(150, 180, 210, 255);
+        TextColor background = new TextColor(30, 40, 50, 255);
+        TextFormat format = new TextFormat(font, 17f)
+        {
+            Color = color,
+            BackgroundColor = background,
+            Decorations = TextDecorations.Background | TextDecorations.Underline
+        };
+        TextLayoutJob unsnappedJob = TextLayoutJob.CreatePlain("ABCD", format);
+        TextLayoutJob snappedJob = TextLayoutJob.CreatePlain(
+            "ABCD",
+            format,
+            new TextLayoutOptions
+            {
+                GeometrySnap = TextGeometrySnap.Pixel
+            });
+
+        TextLayoutResult unsnapped = font.LayoutText(unsnappedJob);
+        TextLayoutResult snapped = font.LayoutText(snappedJob);
+
+        Assert.Equal(MathF.Round(unsnapped.BackgroundRects[0].Bounds.X2), snapped.BackgroundRects[0].Bounds.X2);
+        Assert.Equal(MathF.Round(unsnapped.UnderlineLines[0].Y), snapped.UnderlineLines[0].Y);
+        Assert.Equal(MathF.Round(unsnapped.RowDebugBounds[0].VisualBounds.Y2), snapped.RowDebugBounds[0].VisualBounds.Y2);
+        Assert.Equal(MathF.Round(unsnapped.GlyphDebugBounds[1].LogicalBounds.X2), snapped.GlyphDebugBounds[1].LogicalBounds.X2);
+    }
 }

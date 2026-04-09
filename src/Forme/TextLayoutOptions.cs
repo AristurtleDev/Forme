@@ -47,4 +47,9 @@ public readonly struct TextLayoutOptions
     /// Gets the string appended to truncated text. When <see langword="null"/>, <c>"..."</c> is used.
     /// </summary>
     public string? EllipsisString { get; init; }
+
+    /// <summary>
+    /// Gets the pixel-snapping policy applied to the geometry in the resulting layout output.
+    /// </summary>
+    public TextGeometrySnap GeometrySnap { get; init; }
 }
