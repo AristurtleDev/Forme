@@ -245,7 +245,7 @@ public sealed class FormeFont
     /// <param name="sizePixels">The em-square height in pixels.</param>
     /// <param name="options">Layout options controlling wrapping, spacing, and ellipsis.</param>
     /// <returns>
-     /// Logical bounds in pixels relative to a draw origin at (0, 0). Width reflects the widest
+    /// Logical bounds in pixels relative to a draw origin at (0, 0). Width reflects the widest
     /// line layout width after pair positioning, spacing, wrapping, alignment, and ellipsis policy have
     /// been applied.
     /// </returns>
@@ -344,8 +344,7 @@ public sealed class FormeFont
         }
 
         TextFormat baseFormat = ValidateLayoutJob(job);
-        TextLayoutOptions layoutOptions = job.LayoutOptions;
-        TextLayoutResult baseResult = LayoutText(job.Text.AsSpan(), baseFormat.SizePixels, in layoutOptions);
+        TextLayoutResult baseResult = LayoutTextCore(job, baseFormat);
         return ApplySectionsToLayout(baseResult, job.Sections);
     }
 
@@ -593,16 +592,6 @@ public sealed class FormeFont
             throw new ArgumentException("This layout path currently requires all sections to use the same FormeFont instance.", paramName);
         }
 
-        if (section.Format.SizePixels != baseFormat.SizePixels)
-        {
-            throw new ArgumentException("This layout path currently requires all sections to use the same font size.", paramName);
-        }
-
-        if (section.Format.CharacterSpacing != 0f)
-        {
-            throw new ArgumentException("Per-section character spacing is not supported yet. Use TextLayoutOptions.CharacterSpacing for now.", paramName);
-        }
-
         if (section.Format.LineHeightPixels.HasValue)
         {
             throw new ArgumentException("Per-section line-height overrides are not supported yet.", paramName);
@@ -831,6 +820,232 @@ public sealed class FormeFont
             : FormeTextBounds.Empty;
     }
 
+    private TextLayoutResult LayoutTextCore(TextLayoutJob job, TextFormat baseFormat)
+    {
+        SectionLayoutInfo[] sectionInfos = BuildSectionLayoutInfos(job);
+        List<JobLineLayoutInfo> codePointLines = BuildLines(job, sectionInfos);
+        if (codePointLines.Count == 0)
+        {
+            return TextLayoutResult.Empty;
+        }
+
+        List<GlyphPlacement> placements = new();
+        List<TextLayoutLine> lines = new(codePointLines.Count);
+
+        float maxLineWidth = 0f;
+        bool hasVisibleBounds = false;
+        float visualMinX = 0f;
+        float visualMinY = 0f;
+        float visualMaxX = 0f;
+        float visualMaxY = 0f;
+        float cursorY = 0f;
+
+        for (int lineIndex = 0; lineIndex < codePointLines.Count; lineIndex++)
+        {
+            JobLineLayoutInfo codePointLine = codePointLines[lineIndex];
+            float lineWidth = MeasureLineWidth(codePointLine.Entries, sectionInfos);
+            if (lineWidth > maxLineWidth)
+            {
+                maxLineWidth = lineWidth;
+            }
+
+            float lineOriginX = job.LayoutOptions.Alignment switch
+            {
+                TextHorizontalAlignment.Center => -lineWidth * 0.5f,
+                TextHorizontalAlignment.Right => -lineWidth,
+                _ => 0f
+            };
+
+            int glyphStart = placements.Count;
+            float cursorX = lineOriginX;
+            JobCodePointEntry previousEntry = default;
+            bool hasPreviousGlyph = false;
+            bool lineHasVisibleBounds = false;
+            float lineMinX = 0f;
+            float lineMinY = 0f;
+            float lineMaxX = 0f;
+            float lineMaxY = 0f;
+            float lineAscent = 0f;
+            float lineDescent = 0f;
+            float lineBottom = 0f;
+            float lineAdvance = 0f;
+
+            for (int i = 0; i < codePointLine.Entries.Count; i++)
+            {
+                JobCodePointEntry entry = codePointLine.Entries[i];
+                SectionLayoutInfo sectionInfo = sectionInfos[entry.SectionIndex];
+
+                if (!Glyphs.TryGetValue(entry.CodePoint, out FormeGlyph glyph))
+                {
+                    continue;
+                }
+
+                if (hasPreviousGlyph)
+                {
+                    cursorX += GetJobPairAdvanceAdjustment(previousEntry, entry, sectionInfos);
+                }
+
+                float advance = glyph.AdvanceWidth * sectionInfo.Scale + sectionInfo.CharacterSpacing;
+                FormeTextBounds glyphLogicalBounds = new FormeTextBounds(
+                    cursorX,
+                    cursorY - sectionInfo.Metrics.BaselineToTop,
+                    cursorX + advance,
+                    cursorY + sectionInfo.Metrics.BaselineToBottom);
+                FormeTextBounds visualBounds = ComputeVisualBounds(in glyph, cursorX, cursorY, sectionInfo.Scale);
+                placements.Add(new GlyphPlacement(
+                    entry.Index,
+                    entry.Utf16Length,
+                    entry.CodePoint,
+                    lineIndex,
+                    0,
+                    cursorX,
+                    cursorY,
+                    glyphLogicalBounds,
+                    visualBounds,
+                    advance));
+
+                if (sectionInfo.Metrics.Ascent > lineAscent)
+                {
+                    lineAscent = sectionInfo.Metrics.Ascent;
+                }
+
+                if (sectionInfo.Metrics.Descent < lineDescent)
+                {
+                    lineDescent = sectionInfo.Metrics.Descent;
+                }
+
+                if (sectionInfo.Metrics.BaselineToBottom > lineBottom)
+                {
+                    lineBottom = sectionInfo.Metrics.BaselineToBottom;
+                }
+
+                if (sectionInfo.LineAdvance > lineAdvance)
+                {
+                    lineAdvance = sectionInfo.LineAdvance;
+                }
+
+                if (visualBounds.Width > 0f && visualBounds.Height > 0f)
+                {
+                    if (!lineHasVisibleBounds)
+                    {
+                        lineMinX = visualBounds.X;
+                        lineMinY = visualBounds.Y;
+                        lineMaxX = visualBounds.X2;
+                        lineMaxY = visualBounds.Y2;
+                        lineHasVisibleBounds = true;
+                    }
+                    else
+                    {
+                        if (visualBounds.X < lineMinX)
+                        {
+                            lineMinX = visualBounds.X;
+                        }
+
+                        if (visualBounds.Y < lineMinY)
+                        {
+                            lineMinY = visualBounds.Y;
+                        }
+
+                        if (visualBounds.X2 > lineMaxX)
+                        {
+                            lineMaxX = visualBounds.X2;
+                        }
+
+                        if (visualBounds.Y2 > lineMaxY)
+                        {
+                            lineMaxY = visualBounds.Y2;
+                        }
+                    }
+
+                    if (!hasVisibleBounds)
+                    {
+                        visualMinX = visualBounds.X;
+                        visualMinY = visualBounds.Y;
+                        visualMaxX = visualBounds.X2;
+                        visualMaxY = visualBounds.Y2;
+                        hasVisibleBounds = true;
+                    }
+                    else
+                    {
+                        if (visualBounds.X < visualMinX)
+                        {
+                            visualMinX = visualBounds.X;
+                        }
+
+                        if (visualBounds.Y < visualMinY)
+                        {
+                            visualMinY = visualBounds.Y;
+                        }
+
+                        if (visualBounds.X2 > visualMaxX)
+                        {
+                            visualMaxX = visualBounds.X2;
+                        }
+
+                        if (visualBounds.Y2 > visualMaxY)
+                        {
+                            visualMaxY = visualBounds.Y2;
+                        }
+                    }
+                }
+
+                cursorX += advance;
+                previousEntry = entry;
+                hasPreviousGlyph = true;
+            }
+
+            if (codePointLine.Entries.Count == 0)
+            {
+                SectionLayoutInfo emptyLineInfo = sectionInfos[GetSectionIndexForTextPosition(codePointLine.TextStart, job.Sections, job.Text.Length)];
+                lineAscent = emptyLineInfo.Metrics.Ascent;
+                lineDescent = emptyLineInfo.Metrics.Descent;
+                lineBottom = emptyLineInfo.Metrics.BaselineToBottom;
+                lineAdvance = emptyLineInfo.LineAdvance;
+            }
+
+            FormeTextBounds lineLogicalBounds = new FormeTextBounds(
+                lineOriginX,
+                cursorY - lineAscent,
+                lineOriginX + lineWidth,
+                cursorY + lineBottom);
+            FormeTextBounds lineVisualBounds = lineHasVisibleBounds
+                ? new FormeTextBounds(lineMinX, lineMinY, lineMaxX, lineMaxY)
+                : FormeTextBounds.Empty;
+
+            lines.Add(new TextLayoutLine(
+                codePointLine.TextStart,
+                codePointLine.TextLength,
+                cursorY,
+                lineAdvance,
+                lineAscent,
+                lineDescent,
+                lineWidth,
+                lineLogicalBounds,
+                lineVisualBounds,
+                glyphStart,
+                placements.Count - glyphStart,
+                0,
+                1));
+
+            cursorY += lineAdvance;
+        }
+
+        FormeTextBounds logicalBounds = new FormeTextBounds(
+            0f,
+            -sectionInfos[0].Metrics.BaselineToTop,
+            maxLineWidth,
+            lines[lines.Count - 1].LogicalBounds.Y2);
+        FormeTextBounds visualBoundsResult = hasVisibleBounds
+            ? new FormeTextBounds(visualMinX, visualMinY, visualMaxX, visualMaxY)
+            : FormeTextBounds.Empty;
+        List<TextLayoutRun> runs =
+        [
+            new TextLayoutRun(baseFormat, 0, job.Text.Length, 0, placements.Count, logicalBounds, visualBoundsResult, 0, lines.Count)
+        ];
+
+        return new TextLayoutResult(logicalBounds, visualBoundsResult, lines, runs, placements);
+    }
+
     private List<LineLayoutInfo> BuildLines(ReadOnlySpan<char> text, float scale, in TextLayoutOptions options)
     {
         List<LineLayoutInfo> result = new();
@@ -855,6 +1070,44 @@ public sealed class FormeFont
             else
             {
                 result.Add(CreateLineLayoutInfo(DecodeSegment(segment, lineStart), lineStart, segment.Length));
+            }
+
+            if (newlineAt < 0)
+            {
+                break;
+            }
+
+            lineStart = lineStart + newlineAt + 1;
+        }
+
+        return result;
+    }
+
+    private List<JobLineLayoutInfo> BuildLines(TextLayoutJob job, SectionLayoutInfo[] sectionInfos)
+    {
+        List<JobLineLayoutInfo> result = new();
+        ReadOnlySpan<char> text = job.Text.AsSpan();
+
+        if (job.LayoutOptions.MaxWidth.HasValue && job.LayoutOptions.EllipsisMode != EllipsisMode.None)
+        {
+            BuildEllipsisLine(text, job, sectionInfos, result);
+            return result;
+        }
+
+        int lineStart = 0;
+        while (lineStart <= text.Length)
+        {
+            int newlineAt = text[lineStart..].IndexOf('\n');
+            int segEnd = newlineAt < 0 ? text.Length : lineStart + newlineAt;
+            ReadOnlySpan<char> segment = text[lineStart..segEnd];
+
+            if (job.LayoutOptions.MaxWidth.HasValue)
+            {
+                WrapSegment(segment, lineStart, job, sectionInfos, result);
+            }
+            else
+            {
+                result.Add(CreateLineLayoutInfo(DecodeSegment(segment, lineStart, job.Sections), lineStart, segment.Length));
             }
 
             if (newlineAt < 0)
@@ -960,6 +1213,89 @@ public sealed class FormeFont
         }
     }
 
+    private void WrapSegment(ReadOnlySpan<char> segment, int segmentOffset, TextLayoutJob job, SectionLayoutInfo[] sectionInfos, List<JobLineLayoutInfo> output)
+    {
+        float maxWidth = job.LayoutOptions.MaxWidth!.Value;
+
+        List<JobCodePointEntry> chars = DecodeSegment(segment, segmentOffset, job.Sections);
+        if (chars.Count == 0)
+        {
+            output.Add(new JobLineLayoutInfo(new List<JobCodePointEntry>(), segmentOffset, 0));
+            return;
+        }
+
+        int lineStart = 0;
+        while (lineStart < chars.Count)
+        {
+            float lineWidth = 0f;
+            int lineEnd = lineStart;
+            int lastBreakAt = -1;
+            JobCodePointEntry previousEntry = default;
+            bool hasPreviousGlyph = false;
+
+            while (lineEnd < chars.Count)
+            {
+                JobCodePointEntry entry = chars[lineEnd];
+                float advance = MeasureIncrement(entry, previousEntry, hasPreviousGlyph, sectionInfos);
+
+                if (lineEnd > lineStart && lineWidth + advance > maxWidth)
+                {
+                    break;
+                }
+
+                if (entry.CodePoint == ' ')
+                {
+                    lastBreakAt = lineEnd;
+                }
+
+                lineWidth += advance;
+                if (Glyphs.ContainsKey(entry.CodePoint))
+                {
+                    previousEntry = entry;
+                    hasPreviousGlyph = true;
+                }
+                lineEnd++;
+            }
+
+            int actualEnd;
+            int nextStart;
+
+            if (lineEnd >= chars.Count)
+            {
+                actualEnd = chars.Count;
+                nextStart = chars.Count;
+            }
+            else if (lastBreakAt >= lineStart)
+            {
+                actualEnd = lastBreakAt;
+                nextStart = lastBreakAt + 1;
+            }
+            else
+            {
+                actualEnd = lineEnd;
+                nextStart = lineEnd;
+            }
+
+            List<JobCodePointEntry> line = new(actualEnd - lineStart);
+            for (int j = lineStart; j < actualEnd; j++)
+            {
+                line.Add(chars[j]);
+            }
+
+            int textStart = line.Count > 0 ? line[0].Index : segmentOffset;
+            int textLength = 0;
+            if (line.Count > 0)
+            {
+                JobCodePointEntry lastEntry = line[line.Count - 1];
+                textLength = (lastEntry.Index + lastEntry.Utf16Length) - textStart;
+            }
+
+            output.Add(new JobLineLayoutInfo(line, textStart, textLength));
+
+            lineStart = nextStart;
+        }
+    }
+
     private void BuildEllipsisLine(
         ReadOnlySpan<char> text,
         float scale,
@@ -1057,6 +1393,100 @@ public sealed class FormeFont
         output.Add(new LineLayoutInfo(line, textStart, textLength));
     }
 
+    private void BuildEllipsisLine(ReadOnlySpan<char> text, TextLayoutJob job, SectionLayoutInfo[] sectionInfos, List<JobLineLayoutInfo> output)
+    {
+        float maxWidth = job.LayoutOptions.MaxWidth!.Value;
+        string ellipsisStr = job.LayoutOptions.EllipsisString ?? "...";
+
+        List<JobCodePointEntry> line = new();
+        float cursorWidth = 0f;
+        int truncationIndex = text.Length;
+        int lastWordBoundary = 0;
+        bool prevWasSpace = true;
+        JobCodePointEntry previousEntry = default;
+        bool hasPreviousGlyph = false;
+
+        int i = 0;
+        while (i < text.Length)
+        {
+            if (text[i] == '\n')
+            {
+                i++;
+                continue;
+            }
+
+            int sectionIndex = GetSectionIndexForTextPosition(i, job.Sections, text.Length);
+            Rune.DecodeFromUtf16(text[i..], out Rune rune, out int consumed);
+            JobCodePointEntry entry = new JobCodePointEntry(i, rune.Value, consumed, sectionIndex);
+            float advance = MeasureIncrement(entry, previousEntry, hasPreviousGlyph, sectionInfos);
+
+            if (cursorWidth + advance > maxWidth)
+            {
+                truncationIndex = i;
+                break;
+            }
+
+            if (entry.CodePoint == ' ' && !prevWasSpace)
+            {
+                lastWordBoundary = line.Count;
+            }
+            prevWasSpace = entry.CodePoint == ' ';
+
+            line.Add(entry);
+            cursorWidth += advance;
+            if (Glyphs.ContainsKey(entry.CodePoint))
+            {
+                previousEntry = entry;
+                hasPreviousGlyph = true;
+            }
+            i += consumed;
+        }
+
+        bool truncated = i < text.Length;
+        if (truncated)
+        {
+            if (job.LayoutOptions.EllipsisMode == EllipsisMode.Word && lastWordBoundary > 0)
+            {
+                while (line.Count > lastWordBoundary)
+                {
+                    line.RemoveAt(line.Count - 1);
+                }
+
+                while (line.Count > 0 && line[line.Count - 1].CodePoint == ' ')
+                {
+                    line.RemoveAt(line.Count - 1);
+                }
+            }
+
+            int ellipsisSectionIndex = line.Count > 0
+                ? line[line.Count - 1].SectionIndex
+                : GetSectionIndexForTextPosition(truncationIndex, job.Sections, text.Length);
+            List<JobCodePointEntry> ellipsisEntries = DecodeSegment(ellipsisStr.AsSpan(), truncationIndex, ellipsisSectionIndex);
+            for (int ei = 0; ei < ellipsisEntries.Count; ei++)
+            {
+                line.Add(ellipsisEntries[ei]);
+            }
+
+            int ellipsisCount = ellipsisEntries.Count;
+            while (line.Count > 0 && MeasureLineWidth(line, sectionInfos) > maxWidth)
+            {
+                int removableIndex = line.Count - ellipsisCount - 1;
+                if (removableIndex >= 0)
+                {
+                    line.RemoveAt(removableIndex);
+                    continue;
+                }
+
+                line.RemoveAt(0);
+                ellipsisCount--;
+            }
+        }
+
+        int textStart = line.Count > 0 ? line[0].Index : 0;
+        int textLength = truncationIndex > textStart ? truncationIndex - textStart : 0;
+        output.Add(new JobLineLayoutInfo(line, textStart, textLength));
+    }
+
     private float MeasureLineWidth(List<CodePointEntry> line, float scale, float charSpacing)
     {
         float width = 0f;
@@ -1075,6 +1505,25 @@ public sealed class FormeFont
         return width;
     }
 
+    private float MeasureLineWidth(List<JobCodePointEntry> line, SectionLayoutInfo[] sectionInfos)
+    {
+        float width = 0f;
+        JobCodePointEntry previousEntry = default;
+        bool hasPreviousGlyph = false;
+
+        foreach (JobCodePointEntry entry in line)
+        {
+            width += MeasureIncrement(entry, previousEntry, hasPreviousGlyph, sectionInfos);
+            if (Glyphs.ContainsKey(entry.CodePoint))
+            {
+                previousEntry = entry;
+                hasPreviousGlyph = true;
+            }
+        }
+
+        return width;
+    }
+
     private static List<CodePointEntry> DecodeSegment(ReadOnlySpan<char> segment, int offset)
     {
         List<CodePointEntry> list = new(segment.Length);
@@ -1085,6 +1534,42 @@ public sealed class FormeFont
             list.Add(new CodePointEntry(offset + i, rune.Value, consumed));
             i += consumed;
         }
+        return list;
+    }
+
+    private static List<JobCodePointEntry> DecodeSegment(ReadOnlySpan<char> segment, int offset, IReadOnlyList<TextSection> sections)
+    {
+        List<JobCodePointEntry> list = new(segment.Length);
+        int i = 0;
+        int sectionIndex = GetSectionIndexForTextPosition(offset, sections, int.MaxValue);
+
+        while (i < segment.Length)
+        {
+            int absoluteIndex = offset + i;
+            while (sectionIndex + 1 < sections.Count && absoluteIndex >= sections[sectionIndex].TextEnd)
+            {
+                sectionIndex++;
+            }
+
+            Rune.DecodeFromUtf16(segment[i..], out Rune rune, out int consumed);
+            list.Add(new JobCodePointEntry(offset + i, rune.Value, consumed, sectionIndex));
+            i += consumed;
+        }
+
+        return list;
+    }
+
+    private static List<JobCodePointEntry> DecodeSegment(ReadOnlySpan<char> segment, int offset, int sectionIndex)
+    {
+        List<JobCodePointEntry> list = new(segment.Length);
+        int i = 0;
+        while (i < segment.Length)
+        {
+            Rune.DecodeFromUtf16(segment[i..], out Rune rune, out int consumed);
+            list.Add(new JobCodePointEntry(offset + i, rune.Value, consumed, sectionIndex));
+            i += consumed;
+        }
+
         return list;
     }
 
@@ -1099,6 +1584,19 @@ public sealed class FormeFont
         int actualStart = entries[0].Index;
         int actualLength = (lastEntry.Index + lastEntry.Utf16Length) - actualStart;
         return new LineLayoutInfo(entries, actualStart, actualLength);
+    }
+
+    private static JobLineLayoutInfo CreateLineLayoutInfo(List<JobCodePointEntry> entries, int textStart, int textLength)
+    {
+        if (entries.Count == 0)
+        {
+            return new JobLineLayoutInfo(entries, textStart, textLength);
+        }
+
+        JobCodePointEntry lastEntry = entries[entries.Count - 1];
+        int actualStart = entries[0].Index;
+        int actualLength = (lastEntry.Index + lastEntry.Utf16Length) - actualStart;
+        return new JobLineLayoutInfo(entries, actualStart, actualLength);
     }
 
     private static FormeTextBounds ComputeVisualBounds(in FormeGlyph glyph, float baselineX, float baselineY, float scale)
@@ -1136,11 +1634,83 @@ public sealed class FormeFont
         return 0f;
     }
 
+    private float MeasureIncrement(JobCodePointEntry currentEntry, JobCodePointEntry previousEntry, bool hasPreviousGlyph, SectionLayoutInfo[] sectionInfos)
+    {
+        if (Glyphs.TryGetValue(currentEntry.CodePoint, out FormeGlyph glyph))
+        {
+            SectionLayoutInfo currentInfo = sectionInfos[currentEntry.SectionIndex];
+            float width = glyph.AdvanceWidth * currentInfo.Scale + currentInfo.CharacterSpacing;
+            if (hasPreviousGlyph)
+            {
+                width += GetJobPairAdvanceAdjustment(previousEntry, currentEntry, sectionInfos);
+            }
+
+            return width;
+        }
+
+        return 0f;
+    }
+
     private float GetPairAdvanceAdjustment(int previousCodePoint, int currentCodePoint, float scale)
     {
         return TryGetPairAdvanceAdjustment(previousCodePoint, currentCodePoint, out int adjustment)
             ? adjustment * scale
             : 0f;
+    }
+
+    private float GetJobPairAdvanceAdjustment(JobCodePointEntry previousEntry, JobCodePointEntry currentEntry, SectionLayoutInfo[] sectionInfos)
+    {
+        SectionLayoutInfo previousInfo = sectionInfos[previousEntry.SectionIndex];
+        SectionLayoutInfo currentInfo = sectionInfos[currentEntry.SectionIndex];
+        if (previousInfo.Format.SizePixels != currentInfo.Format.SizePixels)
+        {
+            return 0f;
+        }
+
+        return GetPairAdvanceAdjustment(previousEntry.CodePoint, currentEntry.CodePoint, currentInfo.Scale);
+    }
+
+    private SectionLayoutInfo[] BuildSectionLayoutInfos(TextLayoutJob job)
+    {
+        SectionLayoutInfo[] result = new SectionLayoutInfo[job.Sections.Count];
+        for (int i = 0; i < job.Sections.Count; i++)
+        {
+            TextFormat format = job.Sections[i].Format;
+            ScaledFontMetrics metrics = GetScaledMetrics(format.SizePixels);
+            float scale = format.SizePixels / Math.Max(1, Metrics.UnitsPerEm);
+            result[i] = new SectionLayoutInfo(
+                format,
+                metrics,
+                scale,
+                metrics.LineHeight + job.LayoutOptions.LineSpacing,
+                format.CharacterSpacing + job.LayoutOptions.CharacterSpacing);
+        }
+
+        return result;
+    }
+
+    private static int GetSectionIndexForTextPosition(int textIndex, IReadOnlyList<TextSection> sections, int textLength)
+    {
+        if (sections.Count == 0)
+        {
+            return 0;
+        }
+
+        int resolvedIndex = textIndex;
+        if (resolvedIndex >= textLength)
+        {
+            resolvedIndex = Math.Max(0, textLength - 1);
+        }
+
+        for (int i = 0; i < sections.Count; i++)
+        {
+            if (sections[i].ContainsTextIndex(resolvedIndex))
+            {
+                return i;
+            }
+        }
+
+        return sections.Count - 1;
     }
 
     private readonly struct CodePointEntry
@@ -1168,6 +1738,59 @@ public sealed class FormeFont
             Entries = entries;
             TextStart = textStart;
             TextLength = textLength;
+        }
+    }
+
+    private readonly struct JobCodePointEntry
+    {
+        internal int Index { get; }
+        internal int CodePoint { get; }
+        internal int Utf16Length { get; }
+        internal int SectionIndex { get; }
+
+        internal JobCodePointEntry(int index, int codePoint, int utf16Length, int sectionIndex)
+        {
+            Index = index;
+            CodePoint = codePoint;
+            Utf16Length = utf16Length;
+            SectionIndex = sectionIndex;
+        }
+    }
+
+    private readonly struct JobLineLayoutInfo
+    {
+        internal List<JobCodePointEntry> Entries { get; }
+        internal int TextStart { get; }
+        internal int TextLength { get; }
+
+        internal JobLineLayoutInfo(List<JobCodePointEntry> entries, int textStart, int textLength)
+        {
+            Entries = entries;
+            TextStart = textStart;
+            TextLength = textLength;
+        }
+    }
+
+    private readonly struct SectionLayoutInfo
+    {
+        internal TextFormat Format { get; }
+        internal ScaledFontMetrics Metrics { get; }
+        internal float Scale { get; }
+        internal float LineAdvance { get; }
+        internal float CharacterSpacing { get; }
+
+        internal SectionLayoutInfo(
+            TextFormat format,
+            ScaledFontMetrics metrics,
+            float scale,
+            float lineAdvance,
+            float characterSpacing)
+        {
+            Format = format;
+            Metrics = metrics;
+            Scale = scale;
+            LineAdvance = lineAdvance;
+            CharacterSpacing = characterSpacing;
         }
     }
 

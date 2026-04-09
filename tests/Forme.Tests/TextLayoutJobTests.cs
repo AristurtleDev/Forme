@@ -163,7 +163,7 @@ public class TextLayoutJobTests
     }
 
     [Fact]
-    public void LayoutText_JobWithMismatchedSize_Throws()
+    public void LayoutText_JobWithMismatchedSize_UsesSectionSizes()
     {
         FormeFont font = LoadTestFont();
         TextLayoutJob job = new TextLayoutJob(
@@ -174,6 +174,29 @@ public class TextLayoutJobTests
                 new TextSection(5, 5, new TextFormat(font, 20f))
             });
 
-        Assert.Throws<ArgumentException>(() => font.LayoutText(job));
+        TextLayoutResult result = font.LayoutText(job);
+
+        Assert.Equal(2, result.Runs.Count);
+        Assert.Equal(18f, result.Runs[0].SizePixels);
+        Assert.Equal(20f, result.Runs[1].SizePixels);
+        Assert.True(result.Runs[1].VisualBounds.Height >= result.Runs[0].VisualBounds.Height);
+    }
+
+    [Fact]
+    public void LayoutText_JobWithSectionCharacterSpacing_AffectsRunWidth()
+    {
+        FormeFont font = LoadTestFont();
+        TextFormat compact = new TextFormat(font, 20f);
+        TextFormat loose = new TextFormat(font, 20f)
+        {
+            CharacterSpacing = 3f
+        };
+        TextLayoutJob compactJob = TextLayoutJob.CreatePlain("ABCD", compact);
+        TextLayoutJob looseJob = TextLayoutJob.CreatePlain("ABCD", loose);
+
+        TextLayoutResult compactResult = font.LayoutText(compactJob);
+        TextLayoutResult looseResult = font.LayoutText(looseJob);
+
+        Assert.True(looseResult.Runs[0].LogicalBounds.Width > compactResult.Runs[0].LogicalBounds.Width);
     }
 }
