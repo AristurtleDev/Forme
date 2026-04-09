@@ -1141,6 +1141,32 @@ public class TextLayoutJobTests
     }
 
     [Fact]
+    public void TextSelectionRange_WithExtentHelpers_PreserveDirectionWhileReplacingBoundary()
+    {
+        TextSelectionRange forwardSelection = new TextSelectionRange(2, 5);
+        TextSelectionRange backwardSelection = new TextSelectionRange(5, 2);
+
+        TextSelectionRange forwardWithStart = forwardSelection.WithStart(1);
+        TextSelectionRange forwardWithEnd = forwardSelection.WithEnd(6);
+        TextSelectionRange backwardWithStart = backwardSelection.WithStart(1);
+        TextSelectionRange backwardWithEnd = backwardSelection.WithEnd(6);
+
+        Assert.True(forwardWithStart.IsForward);
+        Assert.Equal(1, forwardWithStart.AnchorTextIndex);
+        Assert.Equal(5, forwardWithStart.FocusTextIndex);
+        Assert.True(forwardWithEnd.IsForward);
+        Assert.Equal(2, forwardWithEnd.AnchorTextIndex);
+        Assert.Equal(6, forwardWithEnd.FocusTextIndex);
+
+        Assert.True(backwardWithStart.IsBackward);
+        Assert.Equal(5, backwardWithStart.AnchorTextIndex);
+        Assert.Equal(1, backwardWithStart.FocusTextIndex);
+        Assert.True(backwardWithEnd.IsBackward);
+        Assert.Equal(6, backwardWithEnd.AnchorTextIndex);
+        Assert.Equal(2, backwardWithEnd.FocusTextIndex);
+    }
+
+    [Fact]
     public void TryGetSelectionCarets_PreserveAnchorAndFocusOrder()
     {
         FormeFont font = LoadTestFont();

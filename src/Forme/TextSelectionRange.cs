@@ -121,4 +121,30 @@ public readonly struct TextSelectionRange
     {
         return new TextSelectionRange(End, Start);
     }
+
+    /// <summary>
+    /// Returns a new selection range that preserves this range's visual end and replaces its
+    /// visual start while keeping the current direction.
+    /// </summary>
+    /// <param name="startTextIndex">The zero-based UTF-16 visual start index to use.</param>
+    /// <returns>The updated selection range.</returns>
+    public TextSelectionRange WithStart(int startTextIndex)
+    {
+        return IsForward
+            ? new TextSelectionRange(startTextIndex, End)
+            : new TextSelectionRange(End, startTextIndex);
+    }
+
+    /// <summary>
+    /// Returns a new selection range that preserves this range's visual start and replaces its
+    /// visual end while keeping the current direction.
+    /// </summary>
+    /// <param name="endTextIndex">The zero-based UTF-16 visual end index to use.</param>
+    /// <returns>The updated selection range.</returns>
+    public TextSelectionRange WithEnd(int endTextIndex)
+    {
+        return IsForward
+            ? new TextSelectionRange(Start, endTextIndex)
+            : new TextSelectionRange(endTextIndex, Start);
+    }
 }
