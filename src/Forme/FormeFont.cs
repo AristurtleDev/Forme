@@ -316,6 +316,48 @@ public sealed class FormeFont
     }
 
     /// <summary>
+    /// Tries to find the first code point in <paramref name="text"/> that is not available in
+    /// this <see cref="FormeFont"/>.
+    /// </summary>
+    /// <param name="text">The text to inspect.</param>
+    /// <param name="textIndex">
+    /// When this method returns <see langword="true"/>, contains the zero-based UTF-16 index of
+    /// the first missing code point.
+    /// </param>
+    /// <param name="codePoint">
+    /// When this method returns <see langword="true"/>, contains the missing Unicode code point.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when a missing code point is found; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryFindMissingCodePoint(ReadOnlySpan<char> text, out int textIndex, out int codePoint)
+    {
+        int currentTextIndex = 0;
+        while (currentTextIndex < text.Length)
+        {
+            OperationStatus status = Rune.DecodeFromUtf16(text[currentTextIndex..], out Rune rune, out int charsConsumed);
+            if (status != OperationStatus.Done)
+            {
+                break;
+            }
+
+            if (rune.Value != '\n' && !Glyphs.ContainsKey(rune.Value))
+            {
+                textIndex = currentTextIndex;
+                codePoint = rune.Value;
+                return true;
+            }
+
+            currentTextIndex += charsConsumed;
+        }
+
+        textIndex = -1;
+        codePoint = 0;
+        return false;
+    }
+
+    /// <summary>
     /// Returns the full reusable layout result for the given text.
     /// </summary>
     /// <param name="text">The text to lay out.</param>
@@ -1764,22 +1806,10 @@ public sealed class FormeFont
             return;
         }
 
-        int textIndex = 0;
-        while (textIndex < text.Length)
+        if (TryFindMissingCodePoint(text, out int textIndex, out int codePoint))
         {
-            OperationStatus status = Rune.DecodeFromUtf16(text[textIndex..], out Rune rune, out int charsConsumed);
-            if (status != OperationStatus.Done)
-            {
-                break;
-            }
-
-            if (rune.Value != '\n' && !Glyphs.ContainsKey(rune.Value))
-            {
-                throw new InvalidOperationException(
-                    $"The current FormeFont does not contain a glyph for U+{rune.Value:X4} at UTF-16 index {textIndex}.");
-            }
-
-            textIndex += charsConsumed;
+            throw new InvalidOperationException(
+                $"The current FormeFont does not contain a glyph for U+{codePoint:X4} at UTF-16 index {textIndex}.");
         }
     }
 

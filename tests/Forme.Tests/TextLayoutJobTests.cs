@@ -196,6 +196,30 @@ public class TextLayoutJobTests
     }
 
     [Fact]
+    public void TryFindMissingCodePoint_WithSupportedAscii_ReturnsFalse()
+    {
+        FormeFont font = LoadTestFont();
+
+        bool foundMissing = font.TryFindMissingCodePoint("AB\nCD".AsSpan(), out int textIndex, out int codePoint);
+
+        Assert.False(foundMissing);
+        Assert.Equal(-1, textIndex);
+        Assert.Equal(0, codePoint);
+    }
+
+    [Fact]
+    public void TryFindMissingCodePoint_WithMissingCodePoint_ReturnsFirstMissingEntry()
+    {
+        FormeFont font = LoadTestFont();
+
+        bool foundMissing = font.TryFindMissingCodePoint("A\u00E9B".AsSpan(), out int textIndex, out int codePoint);
+
+        Assert.True(foundMissing);
+        Assert.Equal(1, textIndex);
+        Assert.Equal(0x00E9, codePoint);
+    }
+
+    [Fact]
     public void LayoutText_JobWithMismatchedSize_UsesSectionSizes()
     {
         FormeFont font = LoadTestFont();
