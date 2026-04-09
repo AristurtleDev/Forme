@@ -647,6 +647,90 @@ public sealed class TextLayoutResult
     }
 
     /// <summary>
+    /// Tries to resolve the nearest word-like range for the given point.
+    /// </summary>
+    /// <param name="x">The X position, relative to the layout origin.</param>
+    /// <param name="y">The Y position, relative to the layout origin.</param>
+    /// <param name="wordStart">
+    /// When this method returns <see langword="true"/>, contains the resolved word start.
+    /// </param>
+    /// <param name="wordEnd">
+    /// When this method returns <see langword="true"/>, contains the resolved word end.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the layout contains at least one line and a non-empty word-like
+    /// range could be resolved; otherwise, <see langword="false"/>.
+    /// </returns>
+    public bool TryGetNearestWordRangeFromPoint(float x, float y, out int wordStart, out int wordEnd)
+    {
+        wordStart = 0;
+        wordEnd = 0;
+
+        if (!TryGetNearestCaretFromPoint(x, y, out TextCaret caret))
+        {
+            return false;
+        }
+
+        return TryGetWordRange(caret.TextIndex, out wordStart, out wordEnd);
+    }
+
+    /// <summary>
+    /// Tries to resolve the nearest line range for the given point.
+    /// </summary>
+    /// <param name="x">The X position, relative to the layout origin.</param>
+    /// <param name="y">The Y position, relative to the layout origin.</param>
+    /// <param name="lineStart">
+    /// When this method returns <see langword="true"/>, contains the resolved line start.
+    /// </param>
+    /// <param name="lineEnd">
+    /// When this method returns <see langword="true"/>, contains the resolved line end.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the layout contains at least one line; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetNearestLineRangeFromPoint(float x, float y, out int lineStart, out int lineEnd)
+    {
+        lineStart = 0;
+        lineEnd = 0;
+
+        if (!TryGetNearestCaretFromPoint(x, y, out TextCaret caret))
+        {
+            return false;
+        }
+
+        return TryGetLineRange(caret.TextIndex, out lineStart, out lineEnd);
+    }
+
+    /// <summary>
+    /// Tries to resolve the nearest paragraph range for the given point.
+    /// </summary>
+    /// <param name="x">The X position, relative to the layout origin.</param>
+    /// <param name="y">The Y position, relative to the layout origin.</param>
+    /// <param name="paragraphStart">
+    /// When this method returns <see langword="true"/>, contains the resolved paragraph start.
+    /// </param>
+    /// <param name="paragraphEnd">
+    /// When this method returns <see langword="true"/>, contains the resolved paragraph end.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the layout contains at least one line; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetNearestParagraphRangeFromPoint(float x, float y, out int paragraphStart, out int paragraphEnd)
+    {
+        paragraphStart = 0;
+        paragraphEnd = 0;
+
+        if (!TryGetNearestCaretFromPoint(x, y, out TextCaret caret))
+        {
+            return false;
+        }
+
+        return TryGetParagraphRange(caret.TextIndex, out paragraphStart, out paragraphEnd);
+    }
+
+    /// <summary>
     /// Tries to resolve the nearest caret on the given line for the requested X position.
     /// </summary>
     /// <param name="lineIndex">The zero-based line index to query.</param>
