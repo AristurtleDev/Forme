@@ -830,6 +830,61 @@ public sealed class TextLayoutResult
     }
 
     /// <summary>
+    /// Tries to extend an existing selection to the given UTF-16 focus index while preserving the
+    /// original anchor.
+    /// </summary>
+    /// <param name="selection">The existing selection range whose anchor should be preserved.</param>
+    /// <param name="focusTextIndex">The zero-based UTF-16 focus index to resolve.</param>
+    /// <param name="extendedSelection">
+    /// When this method returns <see langword="true"/>, contains the resolved extended
+    /// selection range.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when both the anchor and focus resolve to valid caret positions;
+    /// otherwise, <see langword="false"/>.
+    /// </returns>
+    public bool TryExtendSelectionToTextIndex(TextSelectionRange selection, int focusTextIndex, out TextSelectionRange extendedSelection)
+    {
+        if (!TryGetCaretFromTextIndex(selection.AnchorTextIndex, out _)
+            || !TryGetCaretFromTextIndex(focusTextIndex, out _))
+        {
+            extendedSelection = default;
+            return false;
+        }
+
+        extendedSelection = selection.WithFocus(focusTextIndex);
+        return true;
+    }
+
+    /// <summary>
+    /// Tries to extend an existing selection to the caret nearest the given point while
+    /// preserving the original anchor.
+    /// </summary>
+    /// <param name="selection">The existing selection range whose anchor should be preserved.</param>
+    /// <param name="focusX">The focus X position, relative to the layout origin.</param>
+    /// <param name="focusY">The focus Y position, relative to the layout origin.</param>
+    /// <param name="extendedSelection">
+    /// When this method returns <see langword="true"/>, contains the resolved extended
+    /// selection range.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the anchor resolves to a valid caret and the layout contains a
+    /// nearest focus caret; otherwise, <see langword="false"/>.
+    /// </returns>
+    public bool TryExtendSelectionToPoint(TextSelectionRange selection, float focusX, float focusY, out TextSelectionRange extendedSelection)
+    {
+        if (!TryGetCaretFromTextIndex(selection.AnchorTextIndex, out _)
+            || !TryGetNearestCaretFromPoint(focusX, focusY, out TextCaret focusCaret))
+        {
+            extendedSelection = default;
+            return false;
+        }
+
+        extendedSelection = selection.WithFocus(focusCaret.TextIndex);
+        return true;
+    }
+
+    /// <summary>
     /// Tries to resolve the word-like selection range nearest the given UTF-16 index.
     /// </summary>
     /// <param name="textIndex">The zero-based UTF-16 index to query.</param>

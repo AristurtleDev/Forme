@@ -47,4 +47,14 @@ public readonly struct TextSelectionRange
         AnchorTextIndex = anchorTextIndex;
         FocusTextIndex = focusTextIndex;
     }
+
+    /// <summary>
+    /// Returns a new selection range that preserves this range's anchor and replaces the focus.
+    /// </summary>
+    /// <param name="focusTextIndex">The zero-based UTF-16 focus index to use.</param>
+    /// <returns>The updated selection range.</returns>
+    public TextSelectionRange WithFocus(int focusTextIndex)
+    {
+        return new TextSelectionRange(AnchorTextIndex, focusTextIndex);
+    }
 }

@@ -1044,6 +1044,53 @@ public class TextLayoutJobTests
     }
 
     [Fact]
+    public void TextSelectionRange_WithFocus_PreservesAnchorAndUpdatesExtent()
+    {
+        TextSelectionRange selection = new TextSelectionRange(5, 2);
+
+        TextSelectionRange updated = selection.WithFocus(8);
+
+        Assert.Equal(5, updated.AnchorTextIndex);
+        Assert.Equal(8, updated.FocusTextIndex);
+        Assert.Equal(5, updated.Start);
+        Assert.Equal(8, updated.End);
+    }
+
+    [Fact]
+    public void TryExtendSelectionToTextIndex_PreservesAnchorAndUpdatesFocus()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("AB\nCD".AsSpan(), 20f);
+        TextSelectionRange selection = new TextSelectionRange(3, 3);
+
+        Assert.True(result.TryExtendSelectionToTextIndex(selection, 0, out TextSelectionRange extendedSelection));
+
+        Assert.Equal(3, extendedSelection.AnchorTextIndex);
+        Assert.Equal(0, extendedSelection.FocusTextIndex);
+        Assert.Equal(0, extendedSelection.Start);
+        Assert.Equal(3, extendedSelection.End);
+    }
+
+    [Fact]
+    public void TryExtendSelectionToPoint_UsesNearestFocusCaretAndPreservesAnchor()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("AB\nCD".AsSpan(), 20f);
+        TextSelectionRange selection = new TextSelectionRange(3, 3);
+
+        Assert.True(result.TryExtendSelectionToPoint(
+            selection,
+            result.Lines[0].LogicalBounds.X - 50f,
+            result.Lines[0].LogicalBounds.Y - 10f,
+            out TextSelectionRange extendedSelection));
+
+        Assert.Equal(3, extendedSelection.AnchorTextIndex);
+        Assert.Equal(0, extendedSelection.FocusTextIndex);
+        Assert.Equal(0, extendedSelection.Start);
+        Assert.Equal(3, extendedSelection.End);
+    }
+
+    [Fact]
     public void TryGetAdjacentLineCaret_UsesCurrentCaretXByDefault()
     {
         FormeFont font = LoadTestFont();
