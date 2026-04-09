@@ -1000,6 +1000,50 @@ public class TextLayoutJobTests
     }
 
     [Fact]
+    public void TryGetNearestWordSelectionFromPoint_SelectsWordUnderPoint()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("abc def".AsSpan(), 20f);
+        GlyphPlacement glyph = result.Glyphs[5];
+        float x = glyph.BaselineX + glyph.AdvanceWidth * 0.5f;
+        float y = glyph.LogicalBounds.Y + glyph.LogicalBounds.Height * 0.5f;
+
+        Assert.True(result.TryGetNearestWordSelectionFromPoint(x, y, out TextSelectionRange selection));
+
+        Assert.Equal(4, selection.Start);
+        Assert.Equal(7, selection.End);
+    }
+
+    [Fact]
+    public void TryGetNearestLineSelectionFromPoint_BelowLayout_UsesNearestLine()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("AB\nCD".AsSpan(), 20f);
+
+        Assert.True(result.TryGetNearestLineSelectionFromPoint(result.Lines[1].LogicalBounds.X, result.Lines[1].LogicalBounds.Y2 + 10f, out TextSelectionRange selection));
+
+        Assert.Equal(3, selection.Start);
+        Assert.Equal(5, selection.End);
+    }
+
+    [Fact]
+    public void TryGetNearestParagraphSelectionFromPoint_WrappedParagraph_UsesParagraphExtents()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutOptions options = new TextLayoutOptions
+        {
+            MaxWidth = 45f
+        };
+        TextLayoutResult result = font.LayoutText("Wrap here".AsSpan(), 20f, in options);
+        float y = result.Lines[result.Lines.Count - 1].LogicalBounds.Y + 1f;
+
+        Assert.True(result.TryGetNearestParagraphSelectionFromPoint(result.Lines[0].LogicalBounds.X, y, out TextSelectionRange selection));
+
+        Assert.Equal(0, selection.Start);
+        Assert.Equal("Wrap here".Length, selection.End);
+    }
+
+    [Fact]
     public void TryGetAdjacentLineCaret_UsesCurrentCaretXByDefault()
     {
         FormeFont font = LoadTestFont();

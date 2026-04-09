@@ -731,6 +731,78 @@ public sealed class TextLayoutResult
     }
 
     /// <summary>
+    /// Tries to resolve the nearest word-like selection for the given point.
+    /// </summary>
+    /// <param name="x">The X position, relative to the layout origin.</param>
+    /// <param name="y">The Y position, relative to the layout origin.</param>
+    /// <param name="selection">
+    /// When this method returns <see langword="true"/>, contains the resolved selection range.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when a non-empty word-like range could be resolved; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetNearestWordSelectionFromPoint(float x, float y, out TextSelectionRange selection)
+    {
+        if (!TryGetNearestWordRangeFromPoint(x, y, out int wordStart, out int wordEnd))
+        {
+            selection = default;
+            return false;
+        }
+
+        selection = new TextSelectionRange(wordStart, wordEnd);
+        return true;
+    }
+
+    /// <summary>
+    /// Tries to resolve the nearest line selection for the given point.
+    /// </summary>
+    /// <param name="x">The X position, relative to the layout origin.</param>
+    /// <param name="y">The Y position, relative to the layout origin.</param>
+    /// <param name="selection">
+    /// When this method returns <see langword="true"/>, contains the resolved selection range.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the layout contains at least one line; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetNearestLineSelectionFromPoint(float x, float y, out TextSelectionRange selection)
+    {
+        if (!TryGetNearestLineRangeFromPoint(x, y, out int lineStart, out int lineEnd))
+        {
+            selection = default;
+            return false;
+        }
+
+        selection = new TextSelectionRange(lineStart, lineEnd);
+        return true;
+    }
+
+    /// <summary>
+    /// Tries to resolve the nearest paragraph selection for the given point.
+    /// </summary>
+    /// <param name="x">The X position, relative to the layout origin.</param>
+    /// <param name="y">The Y position, relative to the layout origin.</param>
+    /// <param name="selection">
+    /// When this method returns <see langword="true"/>, contains the resolved selection range.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the layout contains at least one line; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TryGetNearestParagraphSelectionFromPoint(float x, float y, out TextSelectionRange selection)
+    {
+        if (!TryGetNearestParagraphRangeFromPoint(x, y, out int paragraphStart, out int paragraphEnd))
+        {
+            selection = default;
+            return false;
+        }
+
+        selection = new TextSelectionRange(paragraphStart, paragraphEnd);
+        return true;
+    }
+
+    /// <summary>
     /// Tries to resolve a selection range from two points, preserving anchor and focus order.
     /// </summary>
     /// <param name="anchorX">The anchor X position, relative to the layout origin.</param>
