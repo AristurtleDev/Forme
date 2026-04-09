@@ -513,4 +513,54 @@ public class TextLayoutJobTests
         Assert.Equal(2, result.StrikethroughLines[1].TextStart);
         Assert.Equal(2, result.StrikethroughLines[1].TextLength);
     }
+
+    [Fact]
+    public void LayoutText_JobBuildsRowDebugBoundsFromLineGeometry()
+    {
+        FormeFont font = LoadTestFont();
+        TextFormat format = new TextFormat(font, 20f);
+        TextLayoutJob job = TextLayoutJob.CreatePlain("AB\nCD", format);
+
+        TextLayoutResult result = font.LayoutText(job);
+
+        Assert.Equal(result.Lines.Count, result.RowDebugBounds.Count);
+        Assert.Equal(TextDebugBoundsKind.Row, result.RowDebugBounds[0].Kind);
+        Assert.Equal(0, result.RowDebugBounds[0].Index);
+        Assert.Equal(result.Lines[0].TextStart, result.RowDebugBounds[0].TextStart);
+        Assert.Equal(result.Lines[0].TextLength, result.RowDebugBounds[0].TextLength);
+        Assert.Equal(result.Lines[0].LogicalBounds, result.RowDebugBounds[0].LogicalBounds);
+        Assert.Equal(result.Lines[0].VisualBounds, result.RowDebugBounds[0].VisualBounds);
+        Assert.Equal(1, result.RowDebugBounds[1].Index);
+        Assert.Equal(result.Lines[1].LogicalBounds, result.RowDebugBounds[1].LogicalBounds);
+        Assert.Equal(result.Lines[1].VisualBounds, result.RowDebugBounds[1].VisualBounds);
+    }
+
+    [Fact]
+    public void LayoutText_JobBuildsGlyphDebugBoundsFromGlyphGeometry()
+    {
+        FormeFont font = LoadTestFont();
+        TextFormat normal = new TextFormat(font, 20f);
+        TextFormat shifted = new TextFormat(font, 20f)
+        {
+            BaselineShift = -4f
+        };
+        TextLayoutJob job = new TextLayoutJob(
+            "ABCD",
+            new TextSection[]
+            {
+                new TextSection(0, 2, normal),
+                new TextSection(2, 2, shifted)
+            });
+
+        TextLayoutResult result = font.LayoutText(job);
+
+        Assert.Equal(result.Glyphs.Count, result.GlyphDebugBounds.Count);
+        Assert.Equal(TextDebugBoundsKind.Glyph, result.GlyphDebugBounds[2].Kind);
+        Assert.Equal(2, result.GlyphDebugBounds[2].Index);
+        Assert.Equal(result.Glyphs[2].Index, result.GlyphDebugBounds[2].TextStart);
+        Assert.Equal(result.Glyphs[2].TextLength, result.GlyphDebugBounds[2].TextLength);
+        Assert.Equal(result.Glyphs[2].LogicalBounds, result.GlyphDebugBounds[2].LogicalBounds);
+        Assert.Equal(result.Glyphs[2].VisualBounds, result.GlyphDebugBounds[2].VisualBounds);
+        Assert.True(result.GlyphDebugBounds[2].LogicalBounds.Y < result.GlyphDebugBounds[0].LogicalBounds.Y);
+    }
 }

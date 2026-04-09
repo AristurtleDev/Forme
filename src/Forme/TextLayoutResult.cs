@@ -15,6 +15,8 @@ public sealed class TextLayoutResult
     private List<TextBackgroundRect>? _backgroundRects;
     private List<TextDecorationLine>? _underlineLines;
     private List<TextDecorationLine>? _strikethroughLines;
+    private List<TextDebugBounds>? _rowDebugBounds;
+    private List<TextDebugBounds>? _glyphDebugBounds;
 
     /// <summary>
     /// Gets an empty layout result with no lines, no glyphs, and empty bounds.
@@ -82,6 +84,30 @@ public sealed class TextLayoutResult
         {
             _strikethroughLines ??= BuildDecorationLines(TextDecorations.Strikethrough);
             return _strikethroughLines;
+        }
+    }
+
+    /// <summary>
+    /// Gets row-level debug bounds derived directly from the laid-out line data.
+    /// </summary>
+    public IReadOnlyList<TextDebugBounds> RowDebugBounds
+    {
+        get
+        {
+            _rowDebugBounds ??= BuildRowDebugBounds();
+            return _rowDebugBounds;
+        }
+    }
+
+    /// <summary>
+    /// Gets glyph-level debug bounds derived directly from the laid-out glyph data.
+    /// </summary>
+    public IReadOnlyList<TextDebugBounds> GlyphDebugBounds
+    {
+        get
+        {
+            _glyphDebugBounds ??= BuildGlyphDebugBounds();
+            return _glyphDebugBounds;
         }
     }
 
@@ -631,5 +657,41 @@ public sealed class TextLayoutResult
             Math.Max(previous.X2, line.X2),
             previous.Y,
             previous.Thickness);
+    }
+
+    private List<TextDebugBounds> BuildRowDebugBounds()
+    {
+        List<TextDebugBounds> result = new(Lines.Count);
+        for (int i = 0; i < Lines.Count; i++)
+        {
+            TextLayoutLine line = Lines[i];
+            result.Add(new TextDebugBounds(
+                TextDebugBoundsKind.Row,
+                i,
+                line.TextStart,
+                line.TextLength,
+                line.LogicalBounds,
+                line.VisualBounds));
+        }
+
+        return result;
+    }
+
+    private List<TextDebugBounds> BuildGlyphDebugBounds()
+    {
+        List<TextDebugBounds> result = new(Glyphs.Count);
+        for (int i = 0; i < Glyphs.Count; i++)
+        {
+            GlyphPlacement glyph = Glyphs[i];
+            result.Add(new TextDebugBounds(
+                TextDebugBoundsKind.Glyph,
+                i,
+                glyph.Index,
+                glyph.TextLength,
+                glyph.LogicalBounds,
+                glyph.VisualBounds));
+        }
+
+        return result;
     }
 }
