@@ -440,4 +440,77 @@ public class TextLayoutJobTests
         Assert.Equal(2, result.UnderlineLines[1].TextStart);
         Assert.Equal(2, result.UnderlineLines[1].TextLength);
     }
+
+    [Fact]
+    public void LayoutText_JobWithAdjacentStrikethroughRuns_MergesStrikethroughSegmentsPerLine()
+    {
+        FormeFont font = LoadTestFont();
+        TextColor color = new TextColor(100, 220, 160, 255);
+        TextFormat first = new TextFormat(font, 20f)
+        {
+            Color = color,
+            Decorations = TextDecorations.Strikethrough
+        };
+        TextFormat second = new TextFormat(font, 20f)
+        {
+            Color = color,
+            Decorations = TextDecorations.Strikethrough
+        };
+        TextLayoutJob job = new TextLayoutJob(
+            "ABCD",
+            new TextSection[]
+            {
+                new TextSection(0, 2, first),
+                new TextSection(2, 2, second)
+            });
+
+        TextLayoutResult result = font.LayoutText(job);
+
+        Assert.Single(result.StrikethroughLines);
+        Assert.Equal(TextDecorations.Strikethrough, result.StrikethroughLines[0].Decoration);
+        Assert.Equal(color, result.StrikethroughLines[0].Color);
+        Assert.Equal(0, result.StrikethroughLines[0].TextStart);
+        Assert.Equal(4, result.StrikethroughLines[0].TextLength);
+        Assert.Equal(0, result.StrikethroughLines[0].LineIndex);
+        Assert.Equal(result.Lines[0].LogicalBounds.X, result.StrikethroughLines[0].X);
+        Assert.Equal(result.Lines[0].LogicalBounds.X2, result.StrikethroughLines[0].X2);
+        Assert.Equal(result.Glyphs[0].LogicalBounds.Y + result.Glyphs[0].LogicalBounds.Height * 0.5f, result.StrikethroughLines[0].Y);
+        Assert.Equal(1f, result.StrikethroughLines[0].Thickness);
+    }
+
+    [Fact]
+    public void LayoutText_JobWithBaselineShiftedStrikethrough_KeepsSeparateSegments()
+    {
+        FormeFont font = LoadTestFont();
+        TextColor color = new TextColor(220, 120, 140, 255);
+        TextFormat normal = new TextFormat(font, 20f)
+        {
+            Color = color,
+            Decorations = TextDecorations.Strikethrough
+        };
+        TextFormat raised = new TextFormat(font, 20f)
+        {
+            Color = color,
+            Decorations = TextDecorations.Strikethrough,
+            BaselineShift = -4f
+        };
+        TextLayoutJob job = new TextLayoutJob(
+            "ABCD",
+            new TextSection[]
+            {
+                new TextSection(0, 2, normal),
+                new TextSection(2, 2, raised)
+            });
+
+        TextLayoutResult result = font.LayoutText(job);
+
+        Assert.Equal(2, result.StrikethroughLines.Count);
+        Assert.Equal(result.Glyphs[1].LogicalBounds.Y + result.Glyphs[1].LogicalBounds.Height * 0.5f, result.StrikethroughLines[0].Y);
+        Assert.Equal(result.Glyphs[2].LogicalBounds.Y + result.Glyphs[2].LogicalBounds.Height * 0.5f, result.StrikethroughLines[1].Y);
+        Assert.True(result.StrikethroughLines[1].Y < result.StrikethroughLines[0].Y);
+        Assert.Equal(0, result.StrikethroughLines[0].TextStart);
+        Assert.Equal(2, result.StrikethroughLines[0].TextLength);
+        Assert.Equal(2, result.StrikethroughLines[1].TextStart);
+        Assert.Equal(2, result.StrikethroughLines[1].TextLength);
+    }
 }

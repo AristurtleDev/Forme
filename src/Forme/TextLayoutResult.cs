@@ -14,6 +14,7 @@ public sealed class TextLayoutResult
 {
     private List<TextBackgroundRect>? _backgroundRects;
     private List<TextDecorationLine>? _underlineLines;
+    private List<TextDecorationLine>? _strikethroughLines;
 
     /// <summary>
     /// Gets an empty layout result with no lines, no glyphs, and empty bounds.
@@ -68,6 +69,19 @@ public sealed class TextLayoutResult
         {
             _underlineLines ??= BuildDecorationLines(TextDecorations.Underline);
             return _underlineLines;
+        }
+    }
+
+    /// <summary>
+    /// Gets suggested strikethrough segments for runs decorated with
+    /// <see cref="TextDecorations.Strikethrough"/>.
+    /// </summary>
+    public IReadOnlyList<TextDecorationLine> StrikethroughLines
+    {
+        get
+        {
+            _strikethroughLines ??= BuildDecorationLines(TextDecorations.Strikethrough);
+            return _strikethroughLines;
         }
     }
 
