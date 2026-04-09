@@ -504,9 +504,10 @@ public sealed class FormeFont
         FormeTextBounds visualBoundsResult = hasVisibleBounds
             ? new FormeTextBounds(visualMinX, visualMinY, visualMaxX, visualMaxY)
             : FormeTextBounds.Empty;
+        TextFormat runFormat = new TextFormat(this, sizePixels);
         List<TextLayoutRun> runs =
         [
-            new TextLayoutRun(this, sizePixels, TextDecorations.None, 0, text.Length, 0, placements.Count, logicalBounds, visualBoundsResult, 0, lines.Count)
+            new TextLayoutRun(runFormat, 0, text.Length, 0, placements.Count, logicalBounds, visualBoundsResult, 0, lines.Count)
         ];
 
         return new TextLayoutResult(logicalBounds, visualBoundsResult, lines, runs, placements);

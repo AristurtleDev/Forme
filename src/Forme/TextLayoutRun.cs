@@ -15,19 +15,24 @@ namespace Forme;
 public readonly struct TextLayoutRun
 {
     /// <summary>
+    /// Gets the full format used for this run.
+    /// </summary>
+    public TextFormat Format { get; }
+
+    /// <summary>
     /// Gets the font used for this run.
     /// </summary>
-    public FormeFont Font { get; }
+    public FormeFont Font => Format.Font!;
 
     /// <summary>
     /// Gets the em-square height used for this run in pixels.
     /// </summary>
-    public float SizePixels { get; }
+    public float SizePixels => Format.SizePixels;
 
     /// <summary>
     /// Gets the text decorations requested for this run.
     /// </summary>
-    public TextDecorations Decorations { get; }
+    public TextDecorations Decorations => Format.Decorations;
 
     /// <summary>
     /// Gets the zero-based UTF-16 start index of this run within the source text.
@@ -96,9 +101,7 @@ public readonly struct TextLayoutRun
     /// Initializes a new <see cref="TextLayoutRun"/> with the given values.
     /// </summary>
     public TextLayoutRun(
-        FormeFont font,
-        float sizePixels,
-        TextDecorations decorations,
+        TextFormat format,
         int textStart,
         int textLength,
         int glyphStart,
@@ -108,9 +111,12 @@ public readonly struct TextLayoutRun
         int lineStart,
         int lineCount)
     {
-        Font = font;
-        SizePixels = sizePixels;
-        Decorations = decorations;
+        if (!format.IsValid)
+        {
+            throw new System.ArgumentException("Text layout runs require a valid TextFormat.", nameof(format));
+        }
+
+        Format = format;
         TextStart = textStart;
         TextLength = textLength;
         GlyphStart = glyphStart;
