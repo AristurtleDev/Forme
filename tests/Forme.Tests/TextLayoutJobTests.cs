@@ -813,6 +813,42 @@ public class TextLayoutJobTests
     }
 
     [Fact]
+    public void TryGetParagraphStartAndEndCaret_WrappedParagraph_UseParagraphExtents()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutOptions options = new TextLayoutOptions
+        {
+            MaxWidth = 45f
+        };
+        TextLayoutResult result = font.LayoutText("Wrap here".AsSpan(), 20f, in options);
+
+        Assert.True(result.TryGetParagraphStartCaret(result.Lines[1].TextStart, out TextCaret startCaret));
+        Assert.True(result.TryGetParagraphEndCaret(result.Lines[1].TextStart, out TextCaret endCaret));
+
+        Assert.Equal(0, startCaret.TextIndex);
+        Assert.Equal(0, startCaret.LineIndex);
+        Assert.Equal(result.Lines[0].LogicalBounds.X, startCaret.X);
+        Assert.Equal("Wrap here".Length, endCaret.TextIndex);
+        Assert.Equal(result.Lines[result.Lines.Count - 1].LogicalBounds.X2, endCaret.X);
+    }
+
+    [Fact]
+    public void TryGetParagraphStartAndEndCaret_EmptyParagraph_ReturnSameCaret()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("A\n\nB".AsSpan(), 20f);
+
+        Assert.True(result.TryGetParagraphStartCaret(2, out TextCaret startCaret));
+        Assert.True(result.TryGetParagraphEndCaret(2, out TextCaret endCaret));
+
+        Assert.Equal(2, startCaret.TextIndex);
+        Assert.Equal(2, endCaret.TextIndex);
+        Assert.Equal(1, startCaret.LineIndex);
+        Assert.Equal(1, endCaret.LineIndex);
+        Assert.Equal(startCaret.X, endCaret.X);
+    }
+
+    [Fact]
     public void TryGetAdjacentLineCaret_UsesCurrentCaretXByDefault()
     {
         FormeFont font = LoadTestFont();

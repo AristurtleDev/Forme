@@ -603,6 +603,50 @@ public sealed class TextLayoutResult
     }
 
     /// <summary>
+    /// Tries to resolve the caret at the start of the paragraph nearest the given UTF-16 index.
+    /// </summary>
+    /// <param name="textIndex">The zero-based UTF-16 insertion index to query.</param>
+    /// <param name="caret">
+    /// When this method returns <see langword="true"/>, contains the resolved caret geometry.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when <paramref name="textIndex"/> resolves to a laid-out
+    /// paragraph; otherwise, <see langword="false"/>.
+    /// </returns>
+    public bool TryGetParagraphStartCaret(int textIndex, out TextCaret caret)
+    {
+        if (!TryGetParagraphRange(textIndex, out int paragraphStart, out _))
+        {
+            caret = default;
+            return false;
+        }
+
+        return TryGetCaretFromTextIndex(paragraphStart, out caret);
+    }
+
+    /// <summary>
+    /// Tries to resolve the caret at the end of the paragraph nearest the given UTF-16 index.
+    /// </summary>
+    /// <param name="textIndex">The zero-based UTF-16 insertion index to query.</param>
+    /// <param name="caret">
+    /// When this method returns <see langword="true"/>, contains the resolved caret geometry.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when <paramref name="textIndex"/> resolves to a laid-out
+    /// paragraph; otherwise, <see langword="false"/>.
+    /// </returns>
+    public bool TryGetParagraphEndCaret(int textIndex, out TextCaret caret)
+    {
+        if (!TryGetParagraphRange(textIndex, out _, out int paragraphEnd))
+        {
+            caret = default;
+            return false;
+        }
+
+        return TryGetCaretFromTextIndex(paragraphEnd, out caret);
+    }
+
+    /// <summary>
     /// Tries to resolve the nearest caret on the given line for the requested X position.
     /// </summary>
     /// <param name="lineIndex">The zero-based line index to query.</param>
