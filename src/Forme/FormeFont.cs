@@ -330,9 +330,9 @@ public sealed class FormeFont
     /// </summary>
     /// <param name="job">The rich-text layout job to process.</param>
     /// <remarks>
-    /// This first rich-text entry point currently requires all sections to share this font
-    /// instance and the same size. Per-section character spacing, line-height overrides, and
-    /// baseline shifts are reserved for later slices of the rich-text roadmap.
+    /// This rich-text entry point currently requires all sections to share this font instance.
+    /// Per-section size, character spacing, line-height overrides, and baseline shifts are
+    /// supported on that shared-font path.
     /// </remarks>
     public TextLayoutResult LayoutText(TextLayoutJob job)
     {
@@ -575,26 +575,21 @@ public sealed class FormeFont
         }
 
         TextFormat baseFormat = job.Sections[0].Format;
-        ValidateSectionFormat(job.Sections[0], baseFormat, nameof(job));
+        ValidateSectionFormat(job.Sections[0], nameof(job));
 
         for (int i = 1; i < job.Sections.Count; i++)
         {
-            ValidateSectionFormat(job.Sections[i], baseFormat, nameof(job));
+            ValidateSectionFormat(job.Sections[i], nameof(job));
         }
 
         return baseFormat;
     }
 
-    private void ValidateSectionFormat(TextSection section, TextFormat baseFormat, string paramName)
+    private void ValidateSectionFormat(TextSection section, string paramName)
     {
         if (!ReferenceEquals(section.Format.Font, this))
         {
             throw new ArgumentException("This layout path currently requires all sections to use the same FormeFont instance.", paramName);
-        }
-
-        if (section.Format.BaselineShift != 0f)
-        {
-            throw new ArgumentException("Per-section baseline shifts are not supported yet.", paramName);
         }
     }
 
@@ -684,7 +679,7 @@ public sealed class FormeFont
                 throw new InvalidOperationException("Failed to resolve the end caret for a text section.");
             }
 
-            FormeTextBounds logicalBounds = BuildSectionLogicalBounds(baseResult, startCaret, endCaret);
+            FormeTextBounds logicalBounds = BuildSectionLogicalBounds(baseResult, glyphs, runGlyphStart, glyphs.Count - runGlyphStart, startCaret, endCaret);
             FormeTextBounds visualBounds = hasVisualBounds
                 ? new FormeTextBounds(visualMinX, visualMinY, visualMaxX, visualMaxY)
                 : FormeTextBounds.Empty;
@@ -743,7 +738,7 @@ public sealed class FormeFont
         return new TextLayoutResult(baseResult.LogicalBounds, baseResult.VisualBounds, lines, runs, glyphs);
     }
 
-    private static FormeTextBounds BuildSectionLogicalBounds(TextLayoutResult baseResult, TextCaret startCaret, TextCaret endCaret)
+    private static FormeTextBounds BuildSectionLogicalBounds(TextLayoutResult baseResult, List<GlyphPlacement> glyphs, int glyphStart, int glyphCount, TextCaret startCaret, TextCaret endCaret)
     {
         bool hasBounds = false;
         float minX = 0f;
@@ -778,12 +773,50 @@ public sealed class FormeFont
                 sectionMaxX = line.LogicalBounds.X2;
             }
 
+            bool hasLineGlyphBounds = false;
+            float sectionMinY = 0f;
+            float sectionMaxY = 0f;
+
+            for (int glyphIndex = glyphStart; glyphIndex < glyphStart + glyphCount; glyphIndex++)
+            {
+                GlyphPlacement glyph = glyphs[glyphIndex];
+                if (glyph.LineIndex != lineIndex)
+                {
+                    continue;
+                }
+
+                if (!hasLineGlyphBounds)
+                {
+                    sectionMinY = glyph.LogicalBounds.Y;
+                    sectionMaxY = glyph.LogicalBounds.Y2;
+                    hasLineGlyphBounds = true;
+                }
+                else
+                {
+                    if (glyph.LogicalBounds.Y < sectionMinY)
+                    {
+                        sectionMinY = glyph.LogicalBounds.Y;
+                    }
+
+                    if (glyph.LogicalBounds.Y2 > sectionMaxY)
+                    {
+                        sectionMaxY = glyph.LogicalBounds.Y2;
+                    }
+                }
+            }
+
+            if (!hasLineGlyphBounds)
+            {
+                sectionMinY = line.LogicalBounds.Y;
+                sectionMaxY = line.LogicalBounds.Y2;
+            }
+
             if (!hasBounds)
             {
                 minX = sectionMinX;
-                minY = line.LogicalBounds.Y;
+                minY = sectionMinY;
                 maxX = sectionMaxX;
-                maxY = line.LogicalBounds.Y2;
+                maxY = sectionMaxY;
                 hasBounds = true;
             }
             else
@@ -793,9 +826,9 @@ public sealed class FormeFont
                     minX = sectionMinX;
                 }
 
-                if (line.LogicalBounds.Y < minY)
+                if (sectionMinY < minY)
                 {
-                    minY = line.LogicalBounds.Y;
+                    minY = sectionMinY;
                 }
 
                 if (sectionMaxX > maxX)
@@ -803,9 +836,9 @@ public sealed class FormeFont
                     maxX = sectionMaxX;
                 }
 
-                if (line.LogicalBounds.Y2 > maxY)
+                if (sectionMaxY > maxY)
                 {
-                    maxY = line.LogicalBounds.Y2;
+                    maxY = sectionMaxY;
                 }
             }
         }
@@ -881,12 +914,13 @@ public sealed class FormeFont
                 }
 
                 float advance = glyph.AdvanceWidth * sectionInfo.Scale + sectionInfo.CharacterSpacing;
+                float glyphBaselineY = cursorY + sectionInfo.BaselineShift;
                 FormeTextBounds glyphLogicalBounds = new FormeTextBounds(
                     cursorX,
-                    cursorY - sectionInfo.Metrics.BaselineToTop,
+                    glyphBaselineY - sectionInfo.Metrics.BaselineToTop,
                     cursorX + advance,
-                    cursorY + sectionInfo.Metrics.BaselineToBottom);
-                FormeTextBounds visualBounds = ComputeVisualBounds(in glyph, cursorX, cursorY, sectionInfo.Scale);
+                    glyphBaselineY + sectionInfo.Metrics.BaselineToBottom);
+                FormeTextBounds visualBounds = ComputeVisualBounds(in glyph, cursorX, glyphBaselineY, sectionInfo.Scale);
                 placements.Add(new GlyphPlacement(
                     entry.Index,
                     entry.Utf16Length,
@@ -894,24 +928,27 @@ public sealed class FormeFont
                     lineIndex,
                     0,
                     cursorX,
-                    cursorY,
+                    glyphBaselineY,
                     glyphLogicalBounds,
                     visualBounds,
                     advance));
 
-                if (sectionInfo.Metrics.Ascent > lineAscent)
+                float sectionAscent = sectionInfo.Metrics.Ascent - sectionInfo.BaselineShift;
+                if (sectionAscent > lineAscent)
                 {
-                    lineAscent = sectionInfo.Metrics.Ascent;
+                    lineAscent = sectionAscent;
                 }
 
-                if (sectionInfo.Metrics.Descent < lineDescent)
+                float sectionDescent = sectionInfo.Metrics.Descent - sectionInfo.BaselineShift;
+                if (sectionDescent < lineDescent)
                 {
-                    lineDescent = sectionInfo.Metrics.Descent;
+                    lineDescent = sectionDescent;
                 }
 
-                if (sectionInfo.Metrics.BaselineToBottom > lineBottom)
+                float sectionBottom = sectionInfo.Metrics.BaselineToBottom + sectionInfo.BaselineShift;
+                if (sectionBottom > lineBottom)
                 {
-                    lineBottom = sectionInfo.Metrics.BaselineToBottom;
+                    lineBottom = sectionBottom;
                 }
 
                 if (sectionInfo.LineAdvance > lineAdvance)
@@ -992,9 +1029,9 @@ public sealed class FormeFont
             if (codePointLine.Entries.Count == 0)
             {
                 SectionLayoutInfo emptyLineInfo = sectionInfos[GetSectionIndexForTextPosition(codePointLine.TextStart, job.Sections, job.Text.Length)];
-                lineAscent = emptyLineInfo.Metrics.Ascent;
-                lineDescent = emptyLineInfo.Metrics.Descent;
-                lineBottom = emptyLineInfo.Metrics.BaselineToBottom;
+                lineAscent = emptyLineInfo.Metrics.Ascent - emptyLineInfo.BaselineShift;
+                lineDescent = emptyLineInfo.Metrics.Descent - emptyLineInfo.BaselineShift;
+                lineBottom = emptyLineInfo.Metrics.BaselineToBottom + emptyLineInfo.BaselineShift;
                 lineAdvance = emptyLineInfo.LineAdvance;
             }
 
@@ -1025,11 +1062,7 @@ public sealed class FormeFont
             cursorY += lineAdvance;
         }
 
-        FormeTextBounds logicalBounds = new FormeTextBounds(
-            0f,
-            -sectionInfos[0].Metrics.BaselineToTop,
-            maxLineWidth,
-            lines[lines.Count - 1].LogicalBounds.Y2);
+        FormeTextBounds logicalBounds = BuildLogicalBounds(lines, maxLineWidth);
         FormeTextBounds visualBoundsResult = hasVisibleBounds
             ? new FormeTextBounds(visualMinX, visualMinY, visualMaxX, visualMaxY)
             : FormeTextBounds.Empty;
@@ -1039,6 +1072,32 @@ public sealed class FormeFont
         ];
 
         return new TextLayoutResult(logicalBounds, visualBoundsResult, lines, runs, placements);
+    }
+
+    private static FormeTextBounds BuildLogicalBounds(List<TextLayoutLine> lines, float maxLineWidth)
+    {
+        if (lines.Count == 0)
+        {
+            return FormeTextBounds.Empty;
+        }
+
+        float minY = lines[0].LogicalBounds.Y;
+        float maxY = lines[0].LogicalBounds.Y2;
+        for (int i = 1; i < lines.Count; i++)
+        {
+            TextLayoutLine line = lines[i];
+            if (line.LogicalBounds.Y < minY)
+            {
+                minY = line.LogicalBounds.Y;
+            }
+
+            if (line.LogicalBounds.Y2 > maxY)
+            {
+                maxY = line.LogicalBounds.Y2;
+            }
+        }
+
+        return new FormeTextBounds(0f, minY, maxLineWidth, maxY);
     }
 
     private List<LineLayoutInfo> BuildLines(ReadOnlySpan<char> text, float scale, in TextLayoutOptions options)
@@ -1679,7 +1738,8 @@ public sealed class FormeFont
                 metrics,
                 scale,
                 lineHeight + job.LayoutOptions.LineSpacing,
-                format.CharacterSpacing + job.LayoutOptions.CharacterSpacing);
+                format.CharacterSpacing + job.LayoutOptions.CharacterSpacing,
+                format.BaselineShift);
         }
 
         return result;
@@ -1774,19 +1834,22 @@ public sealed class FormeFont
         internal float Scale { get; }
         internal float LineAdvance { get; }
         internal float CharacterSpacing { get; }
+        internal float BaselineShift { get; }
 
         internal SectionLayoutInfo(
             TextFormat format,
             ScaledFontMetrics metrics,
             float scale,
             float lineAdvance,
-            float characterSpacing)
+            float characterSpacing,
+            float baselineShift)
         {
             Format = format;
             Metrics = metrics;
             Scale = scale;
             LineAdvance = lineAdvance;
             CharacterSpacing = characterSpacing;
+            BaselineShift = baselineShift;
         }
     }
 

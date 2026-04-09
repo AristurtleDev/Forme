@@ -249,4 +249,57 @@ public class TextLayoutJobTests
         Assert.Equal(40f, result.Lines[1].BaselineY);
         Assert.True(result.Lines[1].LineHeight < result.Lines[0].LineHeight);
     }
+
+    [Fact]
+    public void LayoutText_JobWithSectionBaselineShift_OffsetsGlyphBaselines()
+    {
+        FormeFont font = LoadTestFont();
+        TextFormat normal = new TextFormat(font, 20f);
+        TextFormat raised = new TextFormat(font, 20f)
+        {
+            BaselineShift = -4f
+        };
+        TextLayoutJob shiftedJob = new TextLayoutJob(
+            "ABCD",
+            new TextSection[]
+            {
+                new TextSection(0, 2, normal),
+                new TextSection(2, 2, raised)
+            });
+
+        TextLayoutResult shiftedResult = font.LayoutText(shiftedJob);
+
+        Assert.Equal(0f, shiftedResult.Glyphs[0].BaselineY);
+        Assert.Equal(0f, shiftedResult.Glyphs[1].BaselineY);
+        Assert.Equal(-4f, shiftedResult.Glyphs[2].BaselineY);
+        Assert.Equal(-4f, shiftedResult.Glyphs[3].BaselineY);
+        Assert.True(shiftedResult.Runs[1].LogicalBounds.Y < shiftedResult.Runs[0].LogicalBounds.Y);
+    }
+
+    [Fact]
+    public void LayoutText_JobWithSectionBaselineShift_DoesNotChangeFollowingLineBaseline()
+    {
+        FormeFont font = LoadTestFont();
+        TextFormat normal = new TextFormat(font, 20f);
+        TextFormat lowered = new TextFormat(font, 20f)
+        {
+            BaselineShift = 5f
+        };
+        TextLayoutJob shiftedJob = new TextLayoutJob(
+            "AB\nCD",
+            new TextSection[]
+            {
+                new TextSection(0, 2, lowered),
+                new TextSection(2, 1, lowered),
+                new TextSection(3, 2, normal)
+            });
+        TextLayoutJob normalJob = TextLayoutJob.CreatePlain("AB\nCD", normal);
+
+        TextLayoutResult shiftedResult = font.LayoutText(shiftedJob);
+        TextLayoutResult normalResult = font.LayoutText(normalJob);
+
+        Assert.Equal(2, shiftedResult.Lines.Count);
+        Assert.Equal(normalResult.Lines[1].BaselineY, shiftedResult.Lines[1].BaselineY);
+        Assert.True(shiftedResult.Lines[0].LogicalBounds.Y2 > normalResult.Lines[0].LogicalBounds.Y2);
+    }
 }
