@@ -1123,6 +1123,24 @@ public class TextLayoutJobTests
     }
 
     [Fact]
+    public void TextSelectionRange_NormalizeHelpers_ExposeDirectionAndNormalizedOrder()
+    {
+        TextSelectionRange backwardSelection = new TextSelectionRange(5, 2);
+        TextSelectionRange forwardSelection = backwardSelection.NormalizeForward();
+        TextSelectionRange normalizedBackwardSelection = backwardSelection.NormalizeBackward();
+
+        Assert.True(backwardSelection.IsBackward);
+        Assert.False(backwardSelection.IsForward);
+        Assert.True(forwardSelection.IsForward);
+        Assert.False(forwardSelection.IsBackward);
+        Assert.Equal(2, forwardSelection.AnchorTextIndex);
+        Assert.Equal(5, forwardSelection.FocusTextIndex);
+        Assert.True(normalizedBackwardSelection.IsBackward);
+        Assert.Equal(5, normalizedBackwardSelection.AnchorTextIndex);
+        Assert.Equal(2, normalizedBackwardSelection.FocusTextIndex);
+    }
+
+    [Fact]
     public void TryGetSelectionCarets_PreserveAnchorAndFocusOrder()
     {
         FormeFont font = LoadTestFont();

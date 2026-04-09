@@ -37,6 +37,16 @@ public readonly struct TextSelectionRange
     public bool IsEmpty => AnchorTextIndex == FocusTextIndex;
 
     /// <summary>
+    /// Gets whether this selection range is already ordered from visual start to visual end.
+    /// </summary>
+    public bool IsForward => AnchorTextIndex <= FocusTextIndex;
+
+    /// <summary>
+    /// Gets whether this selection range is ordered from visual end to visual start.
+    /// </summary>
+    public bool IsBackward => AnchorTextIndex > FocusTextIndex;
+
+    /// <summary>
     /// Initializes a new <see cref="TextSelectionRange"/> with the given anchor and focus
     /// indices.
     /// </summary>
@@ -92,5 +102,23 @@ public readonly struct TextSelectionRange
     public TextSelectionRange CollapseToEnd()
     {
         return new TextSelectionRange(End, End);
+    }
+
+    /// <summary>
+    /// Returns this selection range normalized to visual start-to-end order.
+    /// </summary>
+    /// <returns>The normalized selection range.</returns>
+    public TextSelectionRange NormalizeForward()
+    {
+        return new TextSelectionRange(Start, End);
+    }
+
+    /// <summary>
+    /// Returns this selection range normalized to visual end-to-start order.
+    /// </summary>
+    /// <returns>The normalized selection range.</returns>
+    public TextSelectionRange NormalizeBackward()
+    {
+        return new TextSelectionRange(End, Start);
     }
 }
