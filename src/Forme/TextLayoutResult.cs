@@ -885,6 +885,118 @@ public sealed class TextLayoutResult
     }
 
     /// <summary>
+    /// Tries to replace the visual start of an existing selection with the given UTF-16 index
+    /// while preserving the current visual end and selection direction.
+    /// </summary>
+    /// <param name="selection">The existing selection range to update.</param>
+    /// <param name="startTextIndex">The zero-based UTF-16 visual start index to resolve.</param>
+    /// <param name="updatedSelection">
+    /// When this method returns <see langword="true"/>, contains the resolved updated
+    /// selection range.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when both the preserved visual end and the new visual start
+    /// resolve to valid caret positions; otherwise, <see langword="false"/>.
+    /// </returns>
+    public bool TrySetSelectionStartToTextIndex(TextSelectionRange selection, int startTextIndex, out TextSelectionRange updatedSelection)
+    {
+        if (!TryGetCaretFromTextIndex(selection.End, out _)
+            || !TryGetCaretFromTextIndex(startTextIndex, out _))
+        {
+            updatedSelection = default;
+            return false;
+        }
+
+        updatedSelection = selection.WithStart(startTextIndex);
+        return true;
+    }
+
+    /// <summary>
+    /// Tries to replace the visual start of an existing selection with the caret nearest the
+    /// given point while preserving the current visual end and selection direction.
+    /// </summary>
+    /// <param name="selection">The existing selection range to update.</param>
+    /// <param name="startX">The X position for the new visual start, relative to the layout origin.</param>
+    /// <param name="startY">The Y position for the new visual start, relative to the layout origin.</param>
+    /// <param name="updatedSelection">
+    /// When this method returns <see langword="true"/>, contains the resolved updated
+    /// selection range.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the preserved visual end resolves to a valid caret and the
+    /// layout contains a nearest caret for the new visual start; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TrySetSelectionStartToPoint(TextSelectionRange selection, float startX, float startY, out TextSelectionRange updatedSelection)
+    {
+        if (!TryGetCaretFromTextIndex(selection.End, out _)
+            || !TryGetNearestCaretFromPoint(startX, startY, out TextCaret startCaret))
+        {
+            updatedSelection = default;
+            return false;
+        }
+
+        updatedSelection = selection.WithStart(startCaret.TextIndex);
+        return true;
+    }
+
+    /// <summary>
+    /// Tries to replace the visual end of an existing selection with the given UTF-16 index
+    /// while preserving the current visual start and selection direction.
+    /// </summary>
+    /// <param name="selection">The existing selection range to update.</param>
+    /// <param name="endTextIndex">The zero-based UTF-16 visual end index to resolve.</param>
+    /// <param name="updatedSelection">
+    /// When this method returns <see langword="true"/>, contains the resolved updated
+    /// selection range.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when both the preserved visual start and the new visual end
+    /// resolve to valid caret positions; otherwise, <see langword="false"/>.
+    /// </returns>
+    public bool TrySetSelectionEndToTextIndex(TextSelectionRange selection, int endTextIndex, out TextSelectionRange updatedSelection)
+    {
+        if (!TryGetCaretFromTextIndex(selection.Start, out _)
+            || !TryGetCaretFromTextIndex(endTextIndex, out _))
+        {
+            updatedSelection = default;
+            return false;
+        }
+
+        updatedSelection = selection.WithEnd(endTextIndex);
+        return true;
+    }
+
+    /// <summary>
+    /// Tries to replace the visual end of an existing selection with the caret nearest the given
+    /// point while preserving the current visual start and selection direction.
+    /// </summary>
+    /// <param name="selection">The existing selection range to update.</param>
+    /// <param name="endX">The X position for the new visual end, relative to the layout origin.</param>
+    /// <param name="endY">The Y position for the new visual end, relative to the layout origin.</param>
+    /// <param name="updatedSelection">
+    /// When this method returns <see langword="true"/>, contains the resolved updated
+    /// selection range.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the preserved visual start resolves to a valid caret and the
+    /// layout contains a nearest caret for the new visual end; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool TrySetSelectionEndToPoint(TextSelectionRange selection, float endX, float endY, out TextSelectionRange updatedSelection)
+    {
+        if (!TryGetCaretFromTextIndex(selection.Start, out _)
+            || !TryGetNearestCaretFromPoint(endX, endY, out TextCaret endCaret))
+        {
+            updatedSelection = default;
+            return false;
+        }
+
+        updatedSelection = selection.WithEnd(endCaret.TextIndex);
+        return true;
+    }
+
+    /// <summary>
     /// Tries to resolve the caret at the anchor end of the given selection.
     /// </summary>
     /// <param name="selection">The selection range to query.</param>

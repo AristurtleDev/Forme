@@ -1167,6 +1167,50 @@ public class TextLayoutJobTests
     }
 
     [Fact]
+    public void TrySetSelectionExtentToTextIndex_PreservesDirectionWhileUpdatingVisualBoundary()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("AB\nCD".AsSpan(), 20f);
+        TextSelectionRange backwardSelection = new TextSelectionRange(4, 1);
+
+        Assert.True(result.TrySetSelectionStartToTextIndex(backwardSelection, 0, out TextSelectionRange updatedStartSelection));
+        Assert.True(result.TrySetSelectionEndToTextIndex(backwardSelection, 5, out TextSelectionRange updatedEndSelection));
+
+        Assert.True(updatedStartSelection.IsBackward);
+        Assert.Equal(4, updatedStartSelection.AnchorTextIndex);
+        Assert.Equal(0, updatedStartSelection.FocusTextIndex);
+        Assert.True(updatedEndSelection.IsBackward);
+        Assert.Equal(5, updatedEndSelection.AnchorTextIndex);
+        Assert.Equal(1, updatedEndSelection.FocusTextIndex);
+    }
+
+    [Fact]
+    public void TrySetSelectionExtentToPoint_UsesNearestCaretAndPreservesDirection()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutResult result = font.LayoutText("AB\nCD".AsSpan(), 20f);
+        TextSelectionRange backwardSelection = new TextSelectionRange(4, 1);
+
+        Assert.True(result.TrySetSelectionStartToPoint(
+            backwardSelection,
+            result.Lines[0].LogicalBounds.X - 50f,
+            result.Lines[0].LogicalBounds.Y - 10f,
+            out TextSelectionRange updatedStartSelection));
+        Assert.True(result.TrySetSelectionEndToPoint(
+            backwardSelection,
+            result.Lines[1].LogicalBounds.X2 + 50f,
+            result.Lines[1].LogicalBounds.Y2 + 10f,
+            out TextSelectionRange updatedEndSelection));
+
+        Assert.True(updatedStartSelection.IsBackward);
+        Assert.Equal(4, updatedStartSelection.AnchorTextIndex);
+        Assert.Equal(0, updatedStartSelection.FocusTextIndex);
+        Assert.True(updatedEndSelection.IsBackward);
+        Assert.Equal(5, updatedEndSelection.AnchorTextIndex);
+        Assert.Equal(1, updatedEndSelection.FocusTextIndex);
+    }
+
+    [Fact]
     public void TryGetSelectionCarets_PreserveAnchorAndFocusOrder()
     {
         FormeFont font = LoadTestFont();
