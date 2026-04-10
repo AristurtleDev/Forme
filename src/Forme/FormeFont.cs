@@ -222,6 +222,20 @@ public sealed class FormeFont
     }
 
     /// <summary>
+    /// Returns whether this <see cref="FormeFont"/> contains a glyph entry for the given Unicode
+    /// code point.
+    /// </summary>
+    /// <param name="codePoint">The Unicode code point to query.</param>
+    /// <returns>
+    /// <see langword="true"/> when the font contains the code point; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public bool SupportsCodePoint(int codePoint)
+    {
+        return Glyphs.ContainsKey(codePoint);
+    }
+
+    /// <summary>
     /// Measures the logical layout bounds of the given text at the specified size.
     /// </summary>
     /// <param name="text">The text to measure.</param>
@@ -342,7 +356,7 @@ public sealed class FormeFont
                 break;
             }
 
-            if (rune.Value != '\n' && !Glyphs.ContainsKey(rune.Value))
+            if (rune.Value != '\n' && !SupportsCodePoint(rune.Value))
             {
                 textIndex = currentTextIndex;
                 codePoint = rune.Value;

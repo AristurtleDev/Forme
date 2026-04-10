@@ -26,6 +26,12 @@ public class TextLayoutJobTests
         return FormeFont.FromTtf(ttf, CharacterSet.Ascii);
     }
 
+    private static FormeFont LoadLatinSupplementFont()
+    {
+        byte[] ttf = LoadEmbeddedFont("Forme.Tests.TestData.Inter-Regular.ttf");
+        return FormeFont.FromTtf(ttf, CharacterSet.Range(32, 255));
+    }
+
     [Fact]
     public void CreatePlain_NonEmptyText_CreatesSingleFullLengthSection()
     {
@@ -208,6 +214,16 @@ public class TextLayoutJobTests
     }
 
     [Fact]
+    public void SupportsCodePoint_ReturnsTrueForProcessedGlyphsAndFalseForMissingGlyphs()
+    {
+        FormeFont font = LoadTestFont();
+
+        Assert.True(font.SupportsCodePoint('A'));
+        Assert.True(font.SupportsCodePoint(' '));
+        Assert.False(font.SupportsCodePoint(0x00E9));
+    }
+
+    [Fact]
     public void TryFindMissingCodePoint_WithMissingCodePoint_ReturnsFirstMissingEntry()
     {
         FormeFont font = LoadTestFont();
@@ -217,6 +233,33 @@ public class TextLayoutJobTests
         Assert.True(foundMissing);
         Assert.Equal(1, textIndex);
         Assert.Equal(0x00E9, codePoint);
+    }
+
+    [Fact]
+    public void FormeFontChain_ThrowsWhenFallbacksContainDuplicateFont()
+    {
+        FormeFont font = LoadTestFont();
+
+        Assert.Throws<ArgumentException>(() => new FormeFontChain(font, new FormeFont[] { font }));
+    }
+
+    [Fact]
+    public void FormeFontChain_UsesOrderedPrimaryPlusFallbackLookup()
+    {
+        FormeFont asciiFont = LoadTestFont();
+        FormeFont latinSupplementFont = LoadLatinSupplementFont();
+        FormeFontChain chain = new FormeFontChain(asciiFont, new FormeFont[] { latinSupplementFont });
+
+        Assert.Equal(2, chain.Count);
+        Assert.Same(asciiFont, chain.PrimaryFont);
+        Assert.Same(asciiFont, chain[0]);
+        Assert.Same(latinSupplementFont, chain[1]);
+        Assert.True(chain.TryGetSupportingFont('A', out FormeFont asciiSupportingFont));
+        Assert.Same(asciiFont, asciiSupportingFont);
+        Assert.True(chain.TryGetSupportingFont(0x00E9, out FormeFont latinSupportingFont));
+        Assert.Same(latinSupplementFont, latinSupportingFont);
+        Assert.False(chain.TryGetSupportingFont(0x2603, out FormeFont missingSupportingFont));
+        Assert.Null(missingSupportingFont);
     }
 
     [Fact]
