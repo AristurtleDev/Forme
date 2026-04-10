@@ -22,7 +22,7 @@ public readonly struct TextLayoutRun
     /// <summary>
     /// Gets the font used for this run.
     /// </summary>
-    public FormeFont Font => Format.Font!;
+    public FormeFont Font => Format.PrimaryFont!;
 
     /// <summary>
     /// Gets the em-square height used for this run in pixels.

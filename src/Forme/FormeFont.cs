@@ -650,7 +650,7 @@ public sealed class FormeFont
 
     private void ValidateSectionFormat(TextSection section, string paramName)
     {
-        if (!ReferenceEquals(section.Format.Font, this))
+        if (!ReferenceEquals(section.Format.PrimaryFont, this))
         {
             throw new ArgumentException("This layout path currently requires all sections to use the same FormeFont instance.", paramName);
         }

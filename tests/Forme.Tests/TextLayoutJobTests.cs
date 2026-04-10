@@ -59,6 +59,21 @@ public class TextLayoutJobTests
     }
 
     [Fact]
+    public void TextFormat_FontChainConstructor_UsesPrimaryFontForCompatibility()
+    {
+        FormeFont primaryFont = LoadTestFont();
+        FormeFont fallbackFont = LoadLatinSupplementFont();
+        FormeFontChain chain = new FormeFontChain(primaryFont, new FormeFont[] { fallbackFont });
+
+        TextFormat format = new TextFormat(chain, 24f);
+
+        Assert.True(format.IsValid);
+        Assert.Same(chain, format.FontChain);
+        Assert.Same(primaryFont, format.Font);
+        Assert.Same(primaryFont, format.PrimaryFont);
+    }
+
+    [Fact]
     public void Constructor_ThrowsWhenSectionExtendsPastText()
     {
         FormeFont font = LoadTestFont();

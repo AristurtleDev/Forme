@@ -17,6 +17,21 @@ public readonly struct TextFormat
     public FormeFont? Font { get; init; }
 
     /// <summary>
+    /// Gets the optional ordered fallback chain for this section.
+    /// When present, <see cref="Font"/> remains the primary font for compatibility.
+    /// </summary>
+    public FormeFontChain? FontChain { get; init; }
+
+    /// <summary>
+    /// Gets the primary font used for this section, whether it comes from <see cref="Font"/> or
+    /// the primary entry of <see cref="FontChain"/>.
+    /// </summary>
+    public FormeFont? PrimaryFont
+    {
+        get { return FontChain?.PrimaryFont ?? Font; }
+    }
+
+    /// <summary>
     /// Gets the em-square height in pixels used for this section.
     /// </summary>
     public float SizePixels { get; init; }
@@ -58,7 +73,7 @@ public readonly struct TextFormat
     /// </summary>
     public bool IsValid
     {
-        get { return Font != null && SizePixels > 0f; }
+        get { return PrimaryFont != null && SizePixels > 0f; }
     }
 
     /// <summary>
@@ -76,6 +91,32 @@ public readonly struct TextFormat
         }
 
         Font = font;
+        FontChain = null;
+        SizePixels = sizePixels;
+        Color = TextColor.White;
+        BackgroundColor = TextColor.Transparent;
+        Decorations = TextDecorations.None;
+        CharacterSpacing = 0f;
+        LineHeightPixels = null;
+        BaselineShift = 0f;
+    }
+
+    /// <summary>
+    /// Initializes a new <see cref="TextFormat"/> with the given font chain and size.
+    /// </summary>
+    /// <param name="fontChain">The ordered primary-plus-fallback font chain to use.</param>
+    /// <param name="sizePixels">The em-square height in pixels.</param>
+    public TextFormat(FormeFontChain fontChain, float sizePixels)
+    {
+        ArgumentNullException.ThrowIfNull(fontChain);
+
+        if (sizePixels <= 0f)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sizePixels));
+        }
+
+        Font = fontChain.PrimaryFont;
+        FontChain = fontChain;
         SizePixels = sizePixels;
         Color = TextColor.White;
         BackgroundColor = TextColor.Transparent;
