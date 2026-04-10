@@ -81,14 +81,50 @@ public class TextLayoutJobTests
         TextFormat format = new TextFormat(new FormeFontChain(primaryFont, new FormeFont[] { fallbackFont }), 24f);
 
         Assert.True(format.SupportsCodePoint('A'));
-        Assert.True(format.TryGetSupportingFont('A', out FormeFont? asciiSupportingFont));
+        Assert.True(format.TryGetSupportingFont('A', out FormeFont asciiSupportingFont));
         Assert.Same(primaryFont, asciiSupportingFont);
         Assert.True(format.SupportsCodePoint(0x00E9));
-        Assert.True(format.TryGetSupportingFont(0x00E9, out FormeFont? fallbackSupportingFont));
+        Assert.True(format.TryGetSupportingFont(0x00E9, out FormeFont fallbackSupportingFont));
         Assert.Same(fallbackFont, fallbackSupportingFont);
         Assert.False(format.SupportsCodePoint(0x2603));
-        Assert.False(format.TryGetSupportingFont(0x2603, out FormeFont? missingSupportingFont));
+        Assert.False(format.TryGetSupportingFont(0x2603, out FormeFont missingSupportingFont));
         Assert.Null(missingSupportingFont);
+    }
+
+    [Fact]
+    public void LayoutText_JobWithFallbackChain_UsesFallbackGlyphs()
+    {
+        FormeFont primaryFont = LoadTestFont();
+        FormeFont fallbackFont = LoadLatinSupplementFont();
+        TextFormat format = new TextFormat(new FormeFontChain(primaryFont, new FormeFont[] { fallbackFont }), 20f);
+        TextLayoutJob job = TextLayoutJob.CreatePlain("A\u00E9B", format);
+
+        TextLayoutResult result = primaryFont.LayoutText(job);
+
+        Assert.Single(result.Runs);
+        Assert.Equal(3, result.Glyphs.Count);
+        Assert.Equal('A', result.Glyphs[0].CodePoint);
+        Assert.Equal(0x00E9, result.Glyphs[1].CodePoint);
+        Assert.Equal('B', result.Glyphs[2].CodePoint);
+    }
+
+    [Fact]
+    public void LayoutText_JobWithFallbackChainAndStrictMissingGlyphPolicy_DoesNotThrow()
+    {
+        FormeFont primaryFont = LoadTestFont();
+        FormeFont fallbackFont = LoadLatinSupplementFont();
+        TextFormat format = new TextFormat(new FormeFontChain(primaryFont, new FormeFont[] { fallbackFont }), 20f);
+        TextLayoutJob job = TextLayoutJob.CreatePlain(
+            "A\u00E9B",
+            format,
+            new TextLayoutOptions
+            {
+                MissingGlyphPolicy = TextMissingGlyphPolicy.Throw
+            });
+
+        TextLayoutResult result = primaryFont.LayoutText(job);
+
+        Assert.Equal(3, result.Glyphs.Count);
     }
 
     [Fact]
@@ -287,11 +323,11 @@ public class TextLayoutJobTests
         Assert.Same(asciiFont, chain.PrimaryFont);
         Assert.Same(asciiFont, chain[0]);
         Assert.Same(latinSupplementFont, chain[1]);
-        Assert.True(chain.TryGetSupportingFont('A', out FormeFont? asciiSupportingFont));
+        Assert.True(chain.TryGetSupportingFont('A', out FormeFont asciiSupportingFont));
         Assert.Same(asciiFont, asciiSupportingFont);
-        Assert.True(chain.TryGetSupportingFont(0x00E9, out FormeFont? latinSupportingFont));
+        Assert.True(chain.TryGetSupportingFont(0x00E9, out FormeFont latinSupportingFont));
         Assert.Same(latinSupplementFont, latinSupportingFont);
-        Assert.False(chain.TryGetSupportingFont(0x2603, out FormeFont? missingSupportingFont));
+        Assert.False(chain.TryGetSupportingFont(0x2603, out FormeFont missingSupportingFont));
         Assert.Null(missingSupportingFont);
     }
 

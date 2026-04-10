@@ -400,9 +400,8 @@ public sealed class FormeFont
             return TextLayoutResult.Empty;
         }
 
-        ValidateMissingGlyphPolicy(job.Text, job.LayoutOptions.MissingGlyphPolicy);
-
         TextFormat baseFormat = ValidateLayoutJob(job);
+        ValidateMissingGlyphPolicy(job, job.LayoutOptions.MissingGlyphPolicy);
         TextLayoutResult baseResult = LayoutTextCore(job, baseFormat);
         TextLayoutResult result = ApplySectionsToLayout(baseResult, job.Sections);
         return ApplyGeometrySnap(result, job.LayoutOptions.GeometrySnap);
@@ -966,24 +965,29 @@ public sealed class FormeFont
                 JobCodePointEntry entry = codePointLine.Entries[i];
                 SectionLayoutInfo sectionInfo = sectionInfos[entry.SectionIndex];
 
-                if (!Glyphs.TryGetValue(entry.CodePoint, out FormeGlyph glyph))
+                if (!TryGetSupportingFont(entry, sectionInfos, out FormeFont? glyphFont))
                 {
                     continue;
                 }
+
+                FormeFont resolvedGlyphFont = glyphFont!;
+                FormeGlyph glyph = resolvedGlyphFont.Glyphs[entry.CodePoint];
+                float glyphScale = GetScale(resolvedGlyphFont, sectionInfo.Format.SizePixels);
+                ScaledFontMetrics glyphMetrics = resolvedGlyphFont.GetScaledMetrics(sectionInfo.Format.SizePixels);
 
                 if (hasPreviousGlyph)
                 {
                     cursorX += GetJobPairAdvanceAdjustment(previousEntry, entry, sectionInfos);
                 }
 
-                float advance = glyph.AdvanceWidth * sectionInfo.Scale + sectionInfo.CharacterSpacing;
+                float advance = glyph.AdvanceWidth * glyphScale + sectionInfo.CharacterSpacing;
                 float glyphBaselineY = cursorY + sectionInfo.BaselineShift;
                 FormeTextBounds glyphLogicalBounds = new FormeTextBounds(
                     cursorX,
-                    glyphBaselineY - sectionInfo.Metrics.BaselineToTop,
+                    glyphBaselineY - glyphMetrics.BaselineToTop,
                     cursorX + advance,
-                    glyphBaselineY + sectionInfo.Metrics.BaselineToBottom);
-                FormeTextBounds visualBounds = ComputeVisualBounds(in glyph, cursorX, glyphBaselineY, sectionInfo.Scale);
+                    glyphBaselineY + glyphMetrics.BaselineToBottom);
+                FormeTextBounds visualBounds = ComputeVisualBounds(in glyph, cursorX, glyphBaselineY, glyphScale);
                 placements.Add(new GlyphPlacement(
                     entry.Index,
                     entry.Utf16Length,
@@ -996,19 +1000,19 @@ public sealed class FormeFont
                     visualBounds,
                     advance));
 
-                float sectionAscent = sectionInfo.Metrics.Ascent - sectionInfo.BaselineShift;
+                float sectionAscent = glyphMetrics.Ascent - sectionInfo.BaselineShift;
                 if (sectionAscent > lineAscent)
                 {
                     lineAscent = sectionAscent;
                 }
 
-                float sectionDescent = sectionInfo.Metrics.Descent - sectionInfo.BaselineShift;
+                float sectionDescent = glyphMetrics.Descent - sectionInfo.BaselineShift;
                 if (sectionDescent < lineDescent)
                 {
                     lineDescent = sectionDescent;
                 }
 
-                float sectionBottom = sectionInfo.Metrics.BaselineToBottom + sectionInfo.BaselineShift;
+                float sectionBottom = glyphMetrics.BaselineToBottom + sectionInfo.BaselineShift;
                 if (sectionBottom > lineBottom)
                 {
                     lineBottom = sectionBottom;
@@ -1449,7 +1453,7 @@ public sealed class FormeFont
                 }
 
                 lineWidth += advance;
-                if (Glyphs.ContainsKey(entry.CodePoint))
+                if (TryGetSupportingFont(entry, sectionInfos, out _))
                 {
                     previousEntry = entry;
                     hasPreviousGlyph = true;
@@ -1634,7 +1638,7 @@ public sealed class FormeFont
 
             line.Add(entry);
             cursorWidth += advance;
-            if (Glyphs.ContainsKey(entry.CodePoint))
+            if (TryGetSupportingFont(entry, sectionInfos, out _))
             {
                 previousEntry = entry;
                 hasPreviousGlyph = true;
@@ -1714,7 +1718,7 @@ public sealed class FormeFont
         foreach (JobCodePointEntry entry in line)
         {
             width += MeasureIncrement(entry, previousEntry, hasPreviousGlyph, sectionInfos);
-            if (Glyphs.ContainsKey(entry.CodePoint))
+            if (TryGetSupportingFont(entry, sectionInfos, out _))
             {
                 previousEntry = entry;
                 hasPreviousGlyph = true;
@@ -1827,6 +1831,47 @@ public sealed class FormeFont
         }
     }
 
+    private void ValidateMissingGlyphPolicy(TextLayoutJob job, TextMissingGlyphPolicy policy)
+    {
+        if (policy != TextMissingGlyphPolicy.Throw)
+        {
+            return;
+        }
+
+        ReadOnlySpan<char> text = job.Text.AsSpan();
+        int textIndex = 0;
+        while (textIndex < text.Length)
+        {
+            OperationStatus status = Rune.DecodeFromUtf16(text[textIndex..], out Rune rune, out int charsConsumed);
+            if (status != OperationStatus.Done)
+            {
+                break;
+            }
+
+            if (rune.Value != '\n')
+            {
+                int sectionIndex = GetSectionIndexForTextPosition(textIndex, job.Sections, text.Length);
+                if (!job.Sections[sectionIndex].Format.SupportsCodePoint(rune.Value))
+                {
+                    throw new InvalidOperationException(
+                        $"The current text format does not contain a glyph for U+{rune.Value:X4} at UTF-16 index {textIndex}.");
+                }
+            }
+
+            textIndex += charsConsumed;
+        }
+    }
+
+    private static float GetScale(FormeFont font, float sizePixels)
+    {
+        return sizePixels / Math.Max(1, font.Metrics.UnitsPerEm);
+    }
+
+    private static bool TryGetSupportingFont(JobCodePointEntry entry, SectionLayoutInfo[] sectionInfos, out FormeFont? font)
+    {
+        return sectionInfos[entry.SectionIndex].Format.TryGetSupportingFont(entry.CodePoint, out font);
+    }
+
     internal static ulong MakePairAdjustmentKey(int previousCodePoint, int currentCodePoint)
     {
         return ((ulong)(uint)previousCodePoint << 32) | (uint)currentCodePoint;
@@ -1850,10 +1895,12 @@ public sealed class FormeFont
 
     private float MeasureIncrement(JobCodePointEntry currentEntry, JobCodePointEntry previousEntry, bool hasPreviousGlyph, SectionLayoutInfo[] sectionInfos)
     {
-        if (Glyphs.TryGetValue(currentEntry.CodePoint, out FormeGlyph glyph))
+        if (TryGetSupportingFont(currentEntry, sectionInfos, out FormeFont? glyphFont))
         {
             SectionLayoutInfo currentInfo = sectionInfos[currentEntry.SectionIndex];
-            float width = glyph.AdvanceWidth * currentInfo.Scale + currentInfo.CharacterSpacing;
+            FormeFont resolvedGlyphFont = glyphFont!;
+            FormeGlyph glyph = resolvedGlyphFont.Glyphs[currentEntry.CodePoint];
+            float width = glyph.AdvanceWidth * GetScale(resolvedGlyphFont, currentInfo.Format.SizePixels) + currentInfo.CharacterSpacing;
             if (hasPreviousGlyph)
             {
                 width += GetJobPairAdvanceAdjustment(previousEntry, currentEntry, sectionInfos);
@@ -1881,7 +1928,17 @@ public sealed class FormeFont
             return 0f;
         }
 
-        return GetPairAdvanceAdjustment(previousEntry.CodePoint, currentEntry.CodePoint, currentInfo.Scale);
+        if (!TryGetSupportingFont(previousEntry, sectionInfos, out FormeFont? previousFont)
+            || !TryGetSupportingFont(currentEntry, sectionInfos, out FormeFont? currentFont)
+            || !ReferenceEquals(previousFont, currentFont))
+        {
+            return 0f;
+        }
+
+        FormeFont resolvedPreviousFont = previousFont!;
+        return resolvedPreviousFont.TryGetPairAdvanceAdjustment(previousEntry.CodePoint, currentEntry.CodePoint, out int adjustment)
+            ? adjustment * GetScale(resolvedPreviousFont, currentInfo.Format.SizePixels)
+            : 0f;
     }
 
     private SectionLayoutInfo[] BuildSectionLayoutInfos(TextLayoutJob job)
@@ -1890,8 +1947,9 @@ public sealed class FormeFont
         for (int i = 0; i < job.Sections.Count; i++)
         {
             TextFormat format = job.Sections[i].Format;
-            ScaledFontMetrics metrics = GetScaledMetrics(format.SizePixels);
-            float scale = format.SizePixels / Math.Max(1, Metrics.UnitsPerEm);
+            FormeFont primaryFont = format.PrimaryFont!;
+            ScaledFontMetrics metrics = primaryFont.GetScaledMetrics(format.SizePixels);
+            float scale = GetScale(primaryFont, format.SizePixels);
             float lineHeight = format.LineHeightPixels ?? metrics.LineHeight;
             result[i] = new SectionLayoutInfo(
                 format,
