@@ -66,6 +66,31 @@ public sealed class TextLayoutJob
     }
 
     /// <summary>
+    /// Lays out this rich-text job using the primary font of its first section as the entry point.
+    /// </summary>
+    /// <returns>The full reusable layout result for this job.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when a non-empty job does not contain a valid primary font in its first section.
+    /// </exception>
+    public TextLayoutResult Layout()
+    {
+        if (Text.Length == 0)
+        {
+            return TextLayoutResult.Empty;
+        }
+
+        FormeFont? entryFont = Sections.Count > 0
+            ? Sections[0].Format.PrimaryFont
+            : null;
+        if (entryFont is null)
+        {
+            throw new InvalidOperationException("Rich-text layout jobs require a valid primary font in the first section.");
+        }
+
+        return entryFont.LayoutText(this);
+    }
+
+    /// <summary>
     /// Creates a plain-text job containing one section that spans the entire source text.
     /// </summary>
     /// <param name="text">The source text.</param>
