@@ -101,8 +101,17 @@ public class TextLayoutJobTests
 
         TextLayoutResult result = primaryFont.LayoutText(job);
 
-        Assert.Single(result.Runs);
+        Assert.Equal(3, result.Runs.Count);
         Assert.Equal(3, result.Glyphs.Count);
+        Assert.Same(primaryFont, result.Runs[0].Font);
+        Assert.Same(fallbackFont, result.Runs[1].Font);
+        Assert.Same(primaryFont, result.Runs[2].Font);
+        Assert.Equal(0, result.Runs[0].TextStart);
+        Assert.Equal(1, result.Runs[0].TextLength);
+        Assert.Equal(1, result.Runs[1].TextStart);
+        Assert.Equal(1, result.Runs[1].TextLength);
+        Assert.Equal(2, result.Runs[2].TextStart);
+        Assert.Equal(1, result.Runs[2].TextLength);
         Assert.Equal('A', result.Glyphs[0].CodePoint);
         Assert.Same(primaryFont, result.Glyphs[0].Font);
         Assert.Equal(0x00E9, result.Glyphs[1].CodePoint);

@@ -8,9 +8,9 @@ namespace Forme;
 /// Describes one style-contiguous run of text within a <see cref="TextLayoutResult"/>.
 /// </summary>
 /// <remarks>
-/// Current Forme layout uses a single font and style for the whole request, so a result typically
-/// contains one run spanning the full source text. This type exists to make the output model stable
-/// before richer multi-section layout is added.
+/// Runs are contiguous in both section format and resolved font. Rich-text layout may therefore
+/// split a single <see cref="TextSection"/> into multiple runs when fallback font selection changes
+/// within the section.
 /// </remarks>
 public readonly struct TextLayoutRun
 {
@@ -22,7 +22,7 @@ public readonly struct TextLayoutRun
     /// <summary>
     /// Gets the font used for this run.
     /// </summary>
-    public FormeFont Font => Format.PrimaryFont!;
+    public FormeFont Font { get; }
 
     /// <summary>
     /// Gets the em-square height used for this run in pixels.
@@ -100,8 +100,19 @@ public readonly struct TextLayoutRun
     /// <summary>
     /// Initializes a new <see cref="TextLayoutRun"/> with the given values.
     /// </summary>
+    /// <param name="format">The full format used for the run.</param>
+    /// <param name="font">The resolved font used for glyph layout within the run.</param>
+    /// <param name="textStart">The zero-based UTF-16 start index of the run.</param>
+    /// <param name="textLength">The UTF-16 length of the run.</param>
+    /// <param name="glyphStart">The index of the first glyph in the run.</param>
+    /// <param name="glyphCount">The number of glyphs in the run.</param>
+    /// <param name="logicalBounds">The logical bounds of the run.</param>
+    /// <param name="visualBounds">The visual bounds of the run.</param>
+    /// <param name="lineStart">The index of the first line touched by the run.</param>
+    /// <param name="lineCount">The number of lines touched by the run.</param>
     public TextLayoutRun(
         TextFormat format,
+        FormeFont font,
         int textStart,
         int textLength,
         int glyphStart,
@@ -116,7 +127,10 @@ public readonly struct TextLayoutRun
             throw new System.ArgumentException("Text layout runs require a valid TextFormat.", nameof(format));
         }
 
+        System.ArgumentNullException.ThrowIfNull(font);
+
         Format = format;
+        Font = font;
         TextStart = textStart;
         TextLength = textLength;
         GlyphStart = glyphStart;

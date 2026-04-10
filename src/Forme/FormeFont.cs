@@ -591,7 +591,7 @@ public sealed class FormeFont
         TextFormat runFormat = new TextFormat(this, sizePixels);
         List<TextLayoutRun> runs =
         [
-            new TextLayoutRun(runFormat, 0, text.Length, 0, placements.Count, logicalBounds, visualBoundsResult, 0, lines.Count)
+            new TextLayoutRun(runFormat, this, 0, text.Length, 0, placements.Count, logicalBounds, visualBoundsResult, 0, lines.Count)
         ];
 
         TextLayoutResult result = new TextLayoutResult(text.ToString(), logicalBounds, visualBoundsResult, lines, runs, placements);
@@ -661,15 +661,10 @@ public sealed class FormeFont
         List<TextLayoutRun> runs = new(sections.Count);
         int glyphCursor = 0;
 
-        for (int runIndex = 0; runIndex < sections.Count; runIndex++)
+        for (int sectionIndex = 0; sectionIndex < sections.Count; sectionIndex++)
         {
-            TextSection section = sections[runIndex];
-            int runGlyphStart = glyphs.Count;
-            bool hasVisualBounds = false;
-            float visualMinX = 0f;
-            float visualMinY = 0f;
-            float visualMaxX = 0f;
-            float visualMaxY = 0f;
+            TextSection section = sections[sectionIndex];
+            List<GlyphPlacement> sectionGlyphs = new();
 
             while (glyphCursor < baseResult.Glyphs.Count)
             {
@@ -681,6 +676,66 @@ public sealed class FormeFont
 
                 if (glyph.TextEnd > section.TextStart)
                 {
+                    sectionGlyphs.Add(new GlyphPlacement(
+                        glyph.Font,
+                        glyph.Index,
+                        glyph.TextLength,
+                        glyph.CodePoint,
+                        glyph.LineIndex,
+                        0,
+                        glyph.BaselineX,
+                        glyph.BaselineY,
+                        glyph.LogicalBounds,
+                        glyph.VisualBounds,
+                        glyph.AdvanceWidth));
+                }
+
+                glyphCursor++;
+            }
+
+            if (!baseResult.TryGetCaretFromTextIndex(section.TextStart, out TextCaret startCaret))
+            {
+                throw new InvalidOperationException("Failed to resolve the start caret for a text section.");
+            }
+
+            if (!baseResult.TryGetCaretFromTextIndex(section.TextEnd, out TextCaret endCaret))
+            {
+                throw new InvalidOperationException("Failed to resolve the end caret for a text section.");
+            }
+
+            if (sectionGlyphs.Count == 0)
+            {
+                FormeTextBounds emptyLogicalBounds = BuildSectionLogicalBounds(baseResult, glyphs, glyphs.Count, 0, startCaret, endCaret);
+                runs.Add(new TextLayoutRun(
+                    section.Format,
+                    section.Format.PrimaryFont!,
+                    section.TextStart,
+                    section.TextLength,
+                    glyphs.Count,
+                    0,
+                    emptyLogicalBounds,
+                    FormeTextBounds.Empty,
+                    startCaret.LineIndex,
+                    endCaret.LineIndex - startCaret.LineIndex + 1));
+                continue;
+            }
+
+            int runTextStart = section.TextStart;
+            int sectionGlyphIndex = 0;
+            while (sectionGlyphIndex < sectionGlyphs.Count)
+            {
+                FormeFont runFont = sectionGlyphs[sectionGlyphIndex].Font;
+                int runIndex = runs.Count;
+                int runGlyphStart = glyphs.Count;
+                bool hasVisualBounds = false;
+                float visualMinX = 0f;
+                float visualMinY = 0f;
+                float visualMaxX = 0f;
+                float visualMaxY = 0f;
+
+                while (sectionGlyphIndex < sectionGlyphs.Count && ReferenceEquals(sectionGlyphs[sectionGlyphIndex].Font, runFont))
+                {
+                    GlyphPlacement glyph = sectionGlyphs[sectionGlyphIndex];
                     glyphs.Add(new GlyphPlacement(
                         glyph.Font,
                         glyph.Index,
@@ -727,36 +782,42 @@ public sealed class FormeFont
                             }
                         }
                     }
+
+                    sectionGlyphIndex++;
                 }
 
-                glyphCursor++;
+                int runTextEnd = sectionGlyphIndex < sectionGlyphs.Count
+                    ? sectionGlyphs[sectionGlyphIndex].Index
+                    : section.TextEnd;
+                if (!baseResult.TryGetCaretFromTextIndex(runTextStart, out TextCaret runStartCaret))
+                {
+                    throw new InvalidOperationException("Failed to resolve the start caret for a text run.");
+                }
+
+                if (!baseResult.TryGetCaretFromTextIndex(runTextEnd, out TextCaret runEndCaret))
+                {
+                    throw new InvalidOperationException("Failed to resolve the end caret for a text run.");
+                }
+
+                FormeTextBounds logicalBounds = BuildSectionLogicalBounds(baseResult, glyphs, runGlyphStart, glyphs.Count - runGlyphStart, runStartCaret, runEndCaret);
+                FormeTextBounds visualBounds = hasVisualBounds
+                    ? new FormeTextBounds(visualMinX, visualMinY, visualMaxX, visualMaxY)
+                    : FormeTextBounds.Empty;
+
+                runs.Add(new TextLayoutRun(
+                    section.Format,
+                    runFont,
+                    runTextStart,
+                    runTextEnd - runTextStart,
+                    runGlyphStart,
+                    glyphs.Count - runGlyphStart,
+                    logicalBounds,
+                    visualBounds,
+                    runStartCaret.LineIndex,
+                    runEndCaret.LineIndex - runStartCaret.LineIndex + 1));
+
+                runTextStart = runTextEnd;
             }
-
-            if (!baseResult.TryGetCaretFromTextIndex(section.TextStart, out TextCaret startCaret))
-            {
-                throw new InvalidOperationException("Failed to resolve the start caret for a text section.");
-            }
-
-            if (!baseResult.TryGetCaretFromTextIndex(section.TextEnd, out TextCaret endCaret))
-            {
-                throw new InvalidOperationException("Failed to resolve the end caret for a text section.");
-            }
-
-            FormeTextBounds logicalBounds = BuildSectionLogicalBounds(baseResult, glyphs, runGlyphStart, glyphs.Count - runGlyphStart, startCaret, endCaret);
-            FormeTextBounds visualBounds = hasVisualBounds
-                ? new FormeTextBounds(visualMinX, visualMinY, visualMaxX, visualMaxY)
-                : FormeTextBounds.Empty;
-
-            runs.Add(new TextLayoutRun(
-                section.Format,
-                section.TextStart,
-                section.TextLength,
-                runGlyphStart,
-                glyphs.Count - runGlyphStart,
-                logicalBounds,
-                visualBounds,
-                startCaret.LineIndex,
-                endCaret.LineIndex - startCaret.LineIndex + 1));
         }
 
         List<TextLayoutLine> lines = new(baseResult.Lines.Count);
@@ -1137,7 +1198,7 @@ public sealed class FormeFont
             : FormeTextBounds.Empty;
         List<TextLayoutRun> runs =
         [
-            new TextLayoutRun(baseFormat, 0, job.Text.Length, 0, placements.Count, logicalBounds, visualBoundsResult, 0, lines.Count)
+            new TextLayoutRun(baseFormat, this, 0, job.Text.Length, 0, placements.Count, logicalBounds, visualBoundsResult, 0, lines.Count)
         ];
 
         return new TextLayoutResult(job.Text, logicalBounds, visualBoundsResult, lines, runs, placements);
@@ -1176,6 +1237,7 @@ public sealed class FormeFont
             TextLayoutRun run = result.Runs[i];
             runs.Add(new TextLayoutRun(
                 run.Format,
+                run.Font,
                 run.TextStart,
                 run.TextLength,
                 run.GlyphStart,
