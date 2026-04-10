@@ -387,9 +387,9 @@ public sealed class FormeFont
     /// </summary>
     /// <param name="job">The rich-text layout job to process.</param>
     /// <remarks>
-    /// This rich-text entry point currently requires all sections to share this font instance.
+    /// This rich-text entry point supports per-section primary fonts and fallback chains.
     /// Per-section size, character spacing, line-height overrides, and baseline shifts are
-    /// supported on that shared-font path.
+    /// also supported.
     /// </remarks>
     public TextLayoutResult LayoutText(TextLayoutJob job)
     {
@@ -649,9 +649,9 @@ public sealed class FormeFont
 
     private void ValidateSectionFormat(TextSection section, string paramName)
     {
-        if (!ReferenceEquals(section.Format.PrimaryFont, this))
+        if (!section.Format.IsValid)
         {
-            throw new ArgumentException("This layout path currently requires all sections to use the same FormeFont instance.", paramName);
+            throw new ArgumentException("Text layout sections require a valid TextFormat.", paramName);
         }
     }
 

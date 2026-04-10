@@ -140,6 +140,30 @@ public class TextLayoutJobTests
     }
 
     [Fact]
+    public void LayoutText_JobWithPerSectionPrimaryFonts_UsesEachSectionFont()
+    {
+        FormeFont asciiFont = LoadTestFont();
+        FormeFont latinFont = LoadLatinSupplementFont();
+        TextSection[] sections =
+        [
+            new TextSection(0, 1, new TextFormat(asciiFont, 20f)),
+            new TextSection(1, 1, new TextFormat(latinFont, 20f))
+        ];
+        TextLayoutJob job = new TextLayoutJob("A\u00E9", sections);
+
+        TextLayoutResult result = asciiFont.LayoutText(job);
+
+        Assert.Equal(2, result.Runs.Count);
+        Assert.Equal(2, result.Glyphs.Count);
+        Assert.Same(asciiFont, result.Runs[0].Font);
+        Assert.Same(latinFont, result.Runs[1].Font);
+        Assert.Same(asciiFont, result.Glyphs[0].Font);
+        Assert.Same(latinFont, result.Glyphs[1].Font);
+        Assert.Equal('A', result.Glyphs[0].CodePoint);
+        Assert.Equal(0x00E9, result.Glyphs[1].CodePoint);
+    }
+
+    [Fact]
     public void LayoutText_PlainTextGlyphs_ExposeSourceFont()
     {
         FormeFont font = LoadTestFont();
