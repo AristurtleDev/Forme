@@ -77,6 +77,47 @@ public readonly struct TextFormat
     }
 
     /// <summary>
+    /// Returns whether this format can supply a font for the given Unicode code point.
+    /// </summary>
+    /// <param name="codePoint">The Unicode code point to query.</param>
+    /// <returns>
+    /// <see langword="true"/> when the primary font or one of its fallbacks supports the code
+    /// point; otherwise, <see langword="false"/>.
+    /// </returns>
+    public bool SupportsCodePoint(int codePoint)
+    {
+        return TryGetSupportingFont(codePoint, out _);
+    }
+
+    /// <summary>
+    /// Tries to find the font this format would use for the given Unicode code point.
+    /// </summary>
+    /// <param name="codePoint">The Unicode code point to query.</param>
+    /// <param name="font">
+    /// When this method returns <see langword="true"/>, contains the supporting font.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the primary font or one of its fallbacks supports the code
+    /// point; otherwise, <see langword="false"/>.
+    /// </returns>
+    public bool TryGetSupportingFont(int codePoint, out FormeFont? font)
+    {
+        if (FontChain is not null)
+        {
+            return FontChain.TryGetSupportingFont(codePoint, out font);
+        }
+
+        if (PrimaryFont is not null && PrimaryFont.SupportsCodePoint(codePoint))
+        {
+            font = PrimaryFont;
+            return true;
+        }
+
+        font = null;
+        return false;
+    }
+
+    /// <summary>
     /// Initializes a new <see cref="TextFormat"/> with the given font and size.
     /// </summary>
     /// <param name="font">The font to use.</param>
