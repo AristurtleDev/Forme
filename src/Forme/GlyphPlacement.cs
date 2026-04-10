@@ -17,6 +17,11 @@ namespace Forme;
 public readonly struct GlyphPlacement
 {
     /// <summary>
+    /// Gets the font used to resolve and render this glyph.
+    /// </summary>
+    public FormeFont Font { get; }
+
+    /// <summary>
     /// Gets the zero-based index of the first UTF-16 code unit of this glyph in the source string.
     /// </summary>
     public int Index { get; }
@@ -94,6 +99,7 @@ public readonly struct GlyphPlacement
     /// Initializes a new <see cref="GlyphPlacement"/> with the given values.
     /// </summary>
     public GlyphPlacement(
+        FormeFont font,
         int index,
         int textLength,
         int codePoint,
@@ -105,6 +111,7 @@ public readonly struct GlyphPlacement
         FormeTextBounds visualBounds,
         float advanceWidth)
     {
+        Font = font;
         Index = index;
         TextLength = textLength;
         CodePoint = codePoint;

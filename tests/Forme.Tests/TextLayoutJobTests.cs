@@ -104,8 +104,11 @@ public class TextLayoutJobTests
         Assert.Single(result.Runs);
         Assert.Equal(3, result.Glyphs.Count);
         Assert.Equal('A', result.Glyphs[0].CodePoint);
+        Assert.Same(primaryFont, result.Glyphs[0].Font);
         Assert.Equal(0x00E9, result.Glyphs[1].CodePoint);
+        Assert.Same(fallbackFont, result.Glyphs[1].Font);
         Assert.Equal('B', result.Glyphs[2].CodePoint);
+        Assert.Same(primaryFont, result.Glyphs[2].Font);
     }
 
     [Fact]
@@ -125,6 +128,18 @@ public class TextLayoutJobTests
         TextLayoutResult result = primaryFont.LayoutText(job);
 
         Assert.Equal(3, result.Glyphs.Count);
+    }
+
+    [Fact]
+    public void LayoutText_PlainTextGlyphs_ExposeSourceFont()
+    {
+        FormeFont font = LoadTestFont();
+
+        TextLayoutResult result = font.LayoutText("AB".AsSpan(), 20f);
+
+        Assert.Equal(2, result.Glyphs.Count);
+        Assert.Same(font, result.Glyphs[0].Font);
+        Assert.Same(font, result.Glyphs[1].Font);
     }
 
     [Fact]
