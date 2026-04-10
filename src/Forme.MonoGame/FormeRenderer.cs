@@ -260,6 +260,77 @@ public sealed class FormeRenderer : IDisposable
     }
 
     /// <summary>
+    /// Queues the glyphs from a precomputed <see cref="TextLayoutResult"/> for rendering.
+    /// </summary>
+    /// <param name="layout">The precomputed text layout to render.</param>
+    /// <param name="fonts">
+    /// The GPU font devices keyed by the source <see cref="FormeFont"/> instances referenced by
+    /// the layout result.
+    /// </param>
+    /// <param name="position">
+    /// The baseline origin in screen pixels added to the layout's relative glyph positions.
+    /// </param>
+    /// <remarks>
+    /// This method renders glyphs only. Callers remain responsible for drawing background
+    /// rectangles, underlines, strikethroughs, and selection geometry using the surfaces exposed
+    /// by <see cref="TextLayoutResult"/>.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="layout"/> or <paramref name="fonts"/> is null.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when called outside a <see cref="Begin"/>/<see cref="End"/> pair or when a run's
+    /// resolved font does not have a matching <see cref="FormeFontDevice"/> in
+    /// <paramref name="fonts"/>.
+    /// </exception>
+    /// <exception cref="ObjectDisposedException">
+    /// Thrown when this instance has been disposed.
+    /// </exception>
+    public void DrawLayout(TextLayoutResult layout, IReadOnlyDictionary<FormeFont, FormeFontDevice> fonts, Vector2 position)
+    {
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+        ArgumentNullException.ThrowIfNull(layout);
+        ArgumentNullException.ThrowIfNull(fonts);
+
+        if (!_inBeginEnd)
+        {
+            throw new InvalidOperationException("Begin() must be called before DrawLayout().");
+        }
+
+        for (int runIndex = 0; runIndex < layout.Runs.Count; runIndex++)
+        {
+            TextLayoutRun run = layout.Runs[runIndex];
+            if (run.GlyphCount == 0)
+            {
+                continue;
+            }
+
+            if (!fonts.TryGetValue(run.Font, out FormeFontDevice? fontDevice))
+            {
+                throw new InvalidOperationException("The provided font-device map does not contain the resolved font for this layout run.");
+            }
+
+            Color color = new Color(
+                run.Format.Color.R,
+                run.Format.Color.G,
+                run.Format.Color.B,
+                run.Format.Color.A);
+
+            for (int glyphIndex = run.GlyphStart; glyphIndex < run.GlyphEnd; glyphIndex++)
+            {
+                GlyphPlacement placement = layout.Glyphs[glyphIndex];
+                if (!fontDevice.Glyphs.TryGetValue(placement.CodePoint, out FormeGlyph glyph) || glyph.BandInfo.Count == 0)
+                {
+                    continue;
+                }
+
+                Vector2 glyphPos = new(position.X + placement.BaselineX, position.Y + placement.BaselineY);
+                _queue.Add(new QueuedDraw(fontDevice, glyph, placement.CodePoint, glyphPos, run.SizePixels, color));
+            }
+        }
+    }
+
+    /// <summary>
     /// Queues a single glyph for rendering at the specified baseline origin.
     /// </summary>
     /// <param name="font">The GPU font containing the glyph.</param>
