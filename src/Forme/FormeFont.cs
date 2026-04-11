@@ -693,12 +693,12 @@ public sealed class FormeFont
                 glyphCursor++;
             }
 
-            if (!baseResult.TryGetCaretFromTextIndex(section.TextStart, out TextCaret startCaret))
+            if (!TryResolveSectionCaret(baseResult, section.TextStart, out TextCaret startCaret))
             {
                 throw new InvalidOperationException("Failed to resolve the start caret for a text section.");
             }
 
-            if (!baseResult.TryGetCaretFromTextIndex(section.TextEnd, out TextCaret endCaret))
+            if (!TryResolveSectionCaret(baseResult, section.TextEnd, out TextCaret endCaret))
             {
                 throw new InvalidOperationException("Failed to resolve the end caret for a text section.");
             }
@@ -789,12 +789,12 @@ public sealed class FormeFont
                 int runTextEnd = sectionGlyphIndex < sectionGlyphs.Count
                     ? sectionGlyphs[sectionGlyphIndex].Index
                     : section.TextEnd;
-                if (!baseResult.TryGetCaretFromTextIndex(runTextStart, out TextCaret runStartCaret))
+                if (!TryResolveSectionCaret(baseResult, runTextStart, out TextCaret runStartCaret))
                 {
                     throw new InvalidOperationException("Failed to resolve the start caret for a text run.");
                 }
 
-                if (!baseResult.TryGetCaretFromTextIndex(runTextEnd, out TextCaret runEndCaret))
+                if (!TryResolveSectionCaret(baseResult, runTextEnd, out TextCaret runEndCaret))
                 {
                     throw new InvalidOperationException("Failed to resolve the end caret for a text run.");
                 }
@@ -860,6 +860,23 @@ public sealed class FormeFont
         }
 
         return new TextLayoutResult(baseResult.Text, baseResult.LogicalBounds, baseResult.VisualBounds, lines, runs, glyphs);
+    }
+
+    private static bool TryResolveSectionCaret(TextLayoutResult layout, int textIndex, out TextCaret caret)
+    {
+        if (layout.TryGetCaretFromTextIndex(textIndex, out caret))
+        {
+            return true;
+        }
+
+        if (layout.Lines.Count == 0)
+        {
+            caret = default;
+            return false;
+        }
+
+        int lastVisibleTextIndex = layout.Lines[layout.Lines.Count - 1].TextEnd;
+        return layout.TryGetCaretFromTextIndex(lastVisibleTextIndex, out caret);
     }
 
     private static FormeTextBounds BuildSectionLogicalBounds(TextLayoutResult baseResult, List<GlyphPlacement> glyphs, int glyphStart, int glyphCount, TextCaret startCaret, TextCaret endCaret)
