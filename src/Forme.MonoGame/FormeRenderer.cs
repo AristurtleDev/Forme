@@ -28,6 +28,7 @@ namespace Forme.MonoGame;
 public sealed class FormeRenderer : IDisposable
 {
     private const int MaxGlyphsPerBatch = 2048;
+    private const int MaxGlyphLayoutCacheEntries = 2048;
 
     // 1/sqrt(2) for normalized diagonal corner normals
     private const float InvSqrt2 = 0.70710678f;
@@ -40,6 +41,7 @@ public sealed class FormeRenderer : IDisposable
     private readonly FormeVertex[] _vertices;
     private readonly int[] _indices;
     private readonly List<QueuedDraw> _queue;
+    private readonly Dictionary<GlyphLayoutCacheKey, GlyphPlacement[]> _glyphLayoutCache;
 
     private int _glyphCount;
 
@@ -126,6 +128,7 @@ public sealed class FormeRenderer : IDisposable
         _indexBuffer = new IndexBuffer(graphicsDevice, IndexElementSize.ThirtyTwoBits, maxIndices, BufferUsage.WriteOnly);
 
         _queue = new List<QueuedDraw>(256);
+        _glyphLayoutCache = new Dictionary<GlyphLayoutCacheKey, GlyphPlacement[]>(256);
     }
 
     /// <inheritdoc/>
@@ -245,10 +248,11 @@ public sealed class FormeRenderer : IDisposable
             throw new InvalidOperationException("Begin() must be called before DrawString().");
         }
 
-        IReadOnlyList<GlyphPlacement> placements = font.Font.GetGlyphs(text.AsSpan(), sizePixels, in options);
+        GlyphPlacement[] placements = GetCachedGlyphPlacements(font, text, sizePixels, in options);
 
-        foreach (GlyphPlacement placement in placements)
+        for (int i = 0; i < placements.Length; i++)
         {
+            GlyphPlacement placement = placements[i];
             if (!font.Glyphs.TryGetValue(placement.CodePoint, out FormeGlyph glyph) || glyph.BandInfo.Count == 0)
             {
                 continue;
@@ -312,7 +316,7 @@ public sealed class FormeRenderer : IDisposable
                 throw new InvalidOperationException("The provided font-device list does not contain the resolved font for this layout run.");
             }
 
-            QueueRunGlyphs(layout, run, fontDevice, position);
+            QueueRunGlyphs(layout, run, fontDevice, position, null);
         }
     }
 
@@ -367,7 +371,7 @@ public sealed class FormeRenderer : IDisposable
                 throw new InvalidOperationException("The provided font-device map does not contain the resolved font for this layout run.");
             }
 
-            QueueRunGlyphs(layout, run, fontDevice, position);
+            QueueRunGlyphs(layout, run, fontDevice, position, null);
         }
     }
 
@@ -622,9 +626,9 @@ public sealed class FormeRenderer : IDisposable
         return true;
     }
 
-    private void QueueRunGlyphs(TextLayoutResult layout, TextLayoutRun run, FormeFontDevice fontDevice, Vector2 position)
+    private void QueueRunGlyphs(TextLayoutResult layout, TextLayoutRun run, FormeFontDevice fontDevice, Vector2 position, Color? overrideColor)
     {
-        Color color = new Color(
+        Color color = overrideColor ?? new Color(
             run.Format.Color.R,
             run.Format.Color.G,
             run.Format.Color.B,
@@ -641,6 +645,30 @@ public sealed class FormeRenderer : IDisposable
             Vector2 glyphPos = new(position.X + placement.BaselineX, position.Y + placement.BaselineY);
             _queue.Add(new QueuedDraw(fontDevice, glyph, placement.CodePoint, glyphPos, run.SizePixels, color));
         }
+    }
+
+    private GlyphPlacement[] GetCachedGlyphPlacements(FormeFontDevice font, string text, float sizePixels, in TextLayoutOptions options)
+    {
+        GlyphLayoutCacheKey key = new GlyphLayoutCacheKey(font.Font, text, sizePixels, in options);
+        if (_glyphLayoutCache.TryGetValue(key, out GlyphPlacement[]? cachedPlacements))
+        {
+            return cachedPlacements;
+        }
+
+        IReadOnlyList<GlyphPlacement> placements = font.Font.GetGlyphs(text.AsSpan(), sizePixels, in options);
+        GlyphPlacement[] copiedPlacements = new GlyphPlacement[placements.Count];
+        for (int i = 0; i < placements.Count; i++)
+        {
+            copiedPlacements[i] = placements[i];
+        }
+
+        if (_glyphLayoutCache.Count >= MaxGlyphLayoutCacheEntries)
+        {
+            _glyphLayoutCache.Clear();
+        }
+
+        _glyphLayoutCache[key] = copiedPlacements;
+        return copiedPlacements;
     }
 
     private static bool TryFindFontDevice(IReadOnlyList<FormeFontDevice> fonts, FormeFont font, out FormeFontDevice fontDevice)
@@ -675,6 +703,7 @@ public sealed class FormeRenderer : IDisposable
 
         if (disposing)
         {
+            _glyphLayoutCache.Clear();
             if (_ownsEffect)
             {
                 _effect.Dispose();
@@ -703,6 +732,79 @@ public sealed class FormeRenderer : IDisposable
             Position = position;
             SizePixels = sizePixels;
             Color = color;
+        }
+    }
+
+    private readonly struct GlyphLayoutCacheKey : IEquatable<GlyphLayoutCacheKey>
+    {
+        private readonly FormeFont _font;
+        private readonly string _text;
+        private readonly int _sizePixelsBits;
+        private readonly int _maxWidthBits;
+        private readonly bool _hasMaxWidth;
+        private readonly TextHorizontalAlignment _alignment;
+        private readonly int _characterSpacingBits;
+        private readonly int _lineSpacingBits;
+        private readonly EllipsisMode _ellipsisMode;
+        private readonly string? _ellipsisString;
+        private readonly TextGeometrySnap _geometrySnap;
+        private readonly TextMissingGlyphPolicy _missingGlyphPolicy;
+
+        internal GlyphLayoutCacheKey(FormeFont font, string text, float sizePixels, in TextLayoutOptions options)
+        {
+            _font = font;
+            _text = text;
+            _sizePixelsBits = BitConverter.SingleToInt32Bits(sizePixels);
+            _hasMaxWidth = options.MaxWidth.HasValue;
+            _maxWidthBits = _hasMaxWidth
+                ? BitConverter.SingleToInt32Bits(options.MaxWidth!.Value)
+                : 0;
+            _alignment = options.Alignment;
+            _characterSpacingBits = BitConverter.SingleToInt32Bits(options.CharacterSpacing);
+            _lineSpacingBits = BitConverter.SingleToInt32Bits(options.LineSpacing);
+            _ellipsisMode = options.EllipsisMode;
+            _ellipsisString = options.EllipsisString;
+            _geometrySnap = options.GeometrySnap;
+            _missingGlyphPolicy = options.MissingGlyphPolicy;
+        }
+
+        public bool Equals(GlyphLayoutCacheKey other)
+        {
+            return ReferenceEquals(_font, other._font)
+                && string.Equals(_text, other._text, System.StringComparison.Ordinal)
+                && _sizePixelsBits == other._sizePixelsBits
+                && _hasMaxWidth == other._hasMaxWidth
+                && _maxWidthBits == other._maxWidthBits
+                && _alignment == other._alignment
+                && _characterSpacingBits == other._characterSpacingBits
+                && _lineSpacingBits == other._lineSpacingBits
+                && _ellipsisMode == other._ellipsisMode
+                && string.Equals(_ellipsisString, other._ellipsisString, System.StringComparison.Ordinal)
+                && _geometrySnap == other._geometrySnap
+                && _missingGlyphPolicy == other._missingGlyphPolicy;
+        }
+
+        public override bool Equals(object? obj)
+        {
+            return obj is GlyphLayoutCacheKey other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            HashCode hash = new HashCode();
+            hash.Add(_font);
+            hash.Add(_text, StringComparer.Ordinal);
+            hash.Add(_sizePixelsBits);
+            hash.Add(_hasMaxWidth);
+            hash.Add(_maxWidthBits);
+            hash.Add((int)_alignment);
+            hash.Add(_characterSpacingBits);
+            hash.Add(_lineSpacingBits);
+            hash.Add((int)_ellipsisMode);
+            hash.Add(_ellipsisString, StringComparer.Ordinal);
+            hash.Add((int)_geometrySnap);
+            hash.Add((int)_missingGlyphPolicy);
+            return hash.ToHashCode();
         }
     }
 }
