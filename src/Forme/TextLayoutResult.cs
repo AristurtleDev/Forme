@@ -23,12 +23,17 @@ public sealed class TextLayoutResult
     /// <summary>
     /// Gets an empty layout result with no lines, no glyphs, and empty bounds.
     /// </summary>
-    public static TextLayoutResult Empty { get; } = new TextLayoutResult(string.Empty, FormeTextBounds.Empty, FormeTextBounds.Empty, [], [], []);
+    public static TextLayoutResult Empty { get; } = new TextLayoutResult(string.Empty, false, FormeTextBounds.Empty, FormeTextBounds.Empty, [], [], []);
 
     /// <summary>
     /// Gets the original source text this layout result was produced from.
     /// </summary>
     public string Text { get; }
+
+    /// <summary>
+    /// Gets whether layout policy discarded source text from the result.
+    /// </summary>
+    public bool IsElided { get; }
 
     /// <summary>
     /// Gets the overall logical bounds of the laid-out text in pixels.
@@ -120,6 +125,7 @@ public sealed class TextLayoutResult
 
     internal TextLayoutResult(
         string text,
+        bool isElided,
         FormeTextBounds logicalBounds,
         FormeTextBounds visualBounds,
         IReadOnlyList<TextLayoutLine> lines,
@@ -127,6 +133,7 @@ public sealed class TextLayoutResult
         IReadOnlyList<GlyphPlacement> glyphs)
     {
         Text = text;
+        IsElided = isElided;
         LogicalBounds = logicalBounds;
         VisualBounds = visualBounds;
         Lines = lines;

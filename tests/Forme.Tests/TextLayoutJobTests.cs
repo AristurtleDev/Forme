@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Text;
 using Xunit;
 
 namespace Forme.Tests;
@@ -32,6 +33,25 @@ public class TextLayoutJobTests
         return FormeFont.FromTtf(ttf, CharacterSet.Range(32, 255));
     }
 
+    private static FormeFont LoadOverflowFont()
+    {
+        byte[] ttf = LoadEmbeddedFont("Forme.Tests.TestData.Inter-Regular.ttf");
+        CharacterSet charset = CharacterSet.Combine(CharacterSet.Ascii, CharacterSet.FromString("\u2026"));
+        return FormeFont.FromTtf(ttf, charset);
+    }
+
+    private static string GetLineText(TextLayoutResult result, int lineIndex)
+    {
+        TextLayoutLine line = result.Lines[lineIndex];
+        StringBuilder builder = new StringBuilder(line.GlyphCount);
+        for (int i = line.GlyphStart; i < line.GlyphEnd; i++)
+        {
+            builder.Append(new Rune(result.Glyphs[i].CodePoint).ToString());
+        }
+
+        return builder.ToString();
+    }
+
     [Fact]
     public void CreatePlain_NonEmptyText_CreatesSingleFullLengthSection()
     {
@@ -56,6 +76,95 @@ public class TextLayoutJobTests
         TextLayoutJob job = TextLayoutJob.CreatePlain(string.Empty, format);
 
         Assert.Empty(job.Sections);
+    }
+
+    [Fact]
+    public void LayoutText_MaxRowsZero_ReturnsElidedEmptyResult()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutOptions options = new TextLayoutOptions
+        {
+            MaxRows = 0
+        };
+
+        TextLayoutResult result = font.LayoutText("AB".AsSpan(), 20f, in options);
+
+        Assert.True(result.IsElided);
+        Assert.Equal("AB", result.Text);
+        Assert.Empty(result.Lines);
+        Assert.Empty(result.Glyphs);
+    }
+
+    [Fact]
+    public void LayoutText_MaxRowsTruncatesWrappedRows_AppendsDefaultOverflowCharacter()
+    {
+        FormeFont font = LoadOverflowFont();
+        TextLayoutOptions options = new TextLayoutOptions
+        {
+            MaxWidth = 45f,
+            MaxRows = 1
+        };
+
+        TextLayoutResult result = font.LayoutText("Wrap here".AsSpan(), 20f, in options);
+
+        Assert.True(result.IsElided);
+        Assert.Single(result.Lines);
+        Assert.EndsWith("\u2026", GetLineText(result, 0));
+        Assert.True(result.Lines[0].Width <= options.MaxWidth.Value);
+    }
+
+    [Fact]
+    public void LayoutText_MaxRowsWithOverflowCharacter_AppendsRequestedCharacter()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutOptions options = new TextLayoutOptions
+        {
+            MaxRows = 1,
+            OverflowCharacter = "*"
+        };
+
+        TextLayoutResult result = font.LayoutText("AA\nBB".AsSpan(), 20f, in options);
+
+        Assert.True(result.IsElided);
+        Assert.Single(result.Lines);
+        Assert.Equal("AA*", GetLineText(result, 0));
+    }
+
+    [Fact]
+    public void LayoutText_JobMaxRowsWithOverflowCharacter_AppendsRequestedCharacter()
+    {
+        FormeFont font = LoadTestFont();
+        TextFormat format = new TextFormat(font, 20f);
+        TextLayoutOptions options = new TextLayoutOptions
+        {
+            MaxRows = 1,
+            OverflowCharacter = "*"
+        };
+        TextLayoutJob job = TextLayoutJob.CreatePlain("AA\nBB", format, options);
+
+        TextLayoutResult result = font.LayoutText(job);
+
+        Assert.True(result.IsElided);
+        Assert.Single(result.Lines);
+        Assert.Equal("AA*", GetLineText(result, 0));
+        Assert.Equal(format, result.Runs[0].Format);
+    }
+
+    [Fact]
+    public void LayoutText_MaxRowsWithEmptyOverflowCharacter_TruncatesWithoutMarker()
+    {
+        FormeFont font = LoadTestFont();
+        TextLayoutOptions options = new TextLayoutOptions
+        {
+            MaxRows = 1,
+            OverflowCharacter = string.Empty
+        };
+
+        TextLayoutResult result = font.LayoutText("AA\nBB".AsSpan(), 20f, in options);
+
+        Assert.True(result.IsElided);
+        Assert.Single(result.Lines);
+        Assert.Equal("AA", GetLineText(result, 0));
     }
 
     [Fact]

@@ -400,6 +400,13 @@ public sealed class FormeFont
             return TextLayoutResult.Empty;
         }
 
+        TextLayoutOptions layoutOptions = job.LayoutOptions;
+        if (IsMaxRowsZero(in layoutOptions))
+        {
+            ValidateOverflowCharacter(in layoutOptions);
+            return CreateEmptyLayoutResult(job.Text, true);
+        }
+
         TextFormat baseFormat = ValidateLayoutJob(job);
         ValidateMissingGlyphPolicy(job, job.LayoutOptions.MissingGlyphPolicy);
         TextLayoutResult baseResult = LayoutTextCore(job, baseFormat);
@@ -421,16 +428,22 @@ public sealed class FormeFont
             return TextLayoutResult.Empty;
         }
 
+        if (IsMaxRowsZero(in options))
+        {
+            ValidateOverflowCharacter(in options);
+            return CreateEmptyLayoutResult(text.ToString(), true);
+        }
+
         ValidateMissingGlyphPolicy(text, options.MissingGlyphPolicy);
 
         ScaledFontMetrics scaledMetrics = GetScaledMetrics(sizePixels);
         float scale = sizePixels / Math.Max(1, Metrics.UnitsPerEm);
         float lineHeight = scaledMetrics.LineHeight + options.LineSpacing;
 
-        List<LineLayoutInfo> codePointLines = BuildLines(text, scale, in options);
+        List<LineLayoutInfo> codePointLines = BuildLines(text, scale, in options, out bool isElided);
         if (codePointLines.Count == 0)
         {
-            return TextLayoutResult.Empty;
+            return CreateEmptyLayoutResult(text.ToString(), isElided);
         }
 
         List<GlyphPlacement> placements = new();
@@ -594,7 +607,7 @@ public sealed class FormeFont
             new TextLayoutRun(runFormat, this, 0, text.Length, 0, placements.Count, logicalBounds, visualBoundsResult, 0, lines.Count)
         ];
 
-        TextLayoutResult result = new TextLayoutResult(text.ToString(), logicalBounds, visualBoundsResult, lines, runs, placements);
+        TextLayoutResult result = new TextLayoutResult(text.ToString(), isElided, logicalBounds, visualBoundsResult, lines, runs, placements);
         return ApplyGeometrySnap(result, options.GeometrySnap);
     }
 
@@ -669,6 +682,35 @@ public sealed class FormeFont
             while (glyphCursor < baseResult.Glyphs.Count)
             {
                 GlyphPlacement glyph = baseResult.Glyphs[glyphCursor];
+                if (glyph.TextLength == 0)
+                {
+                    if (glyph.RunIndex == sectionIndex)
+                    {
+                        sectionGlyphs.Add(new GlyphPlacement(
+                            glyph.Font,
+                            glyph.Index,
+                            glyph.TextLength,
+                            glyph.CodePoint,
+                            glyph.LineIndex,
+                            0,
+                            glyph.BaselineX,
+                            glyph.BaselineY,
+                            glyph.LogicalBounds,
+                            glyph.VisualBounds,
+                            glyph.AdvanceWidth));
+                        glyphCursor++;
+                        continue;
+                    }
+
+                    if (glyph.RunIndex > sectionIndex)
+                    {
+                        break;
+                    }
+
+                    glyphCursor++;
+                    continue;
+                }
+
                 if (glyph.Index >= section.TextEnd)
                 {
                     break;
@@ -859,7 +901,7 @@ public sealed class FormeFont
                 runCount));
         }
 
-        return new TextLayoutResult(baseResult.Text, baseResult.LogicalBounds, baseResult.VisualBounds, lines, runs, glyphs);
+        return new TextLayoutResult(baseResult.Text, baseResult.IsElided, baseResult.LogicalBounds, baseResult.VisualBounds, lines, runs, glyphs);
     }
 
     private static bool TryResolveSectionCaret(TextLayoutResult layout, int textIndex, out TextCaret caret)
@@ -992,10 +1034,10 @@ public sealed class FormeFont
     private TextLayoutResult LayoutTextCore(TextLayoutJob job, TextFormat baseFormat)
     {
         SectionLayoutInfo[] sectionInfos = BuildSectionLayoutInfos(job);
-        List<JobLineLayoutInfo> codePointLines = BuildLines(job, sectionInfos);
+        List<JobLineLayoutInfo> codePointLines = BuildLines(job, sectionInfos, out bool isElided);
         if (codePointLines.Count == 0)
         {
-            return TextLayoutResult.Empty;
+            return CreateEmptyLayoutResult(job.Text, isElided);
         }
 
         List<GlyphPlacement> placements = new();
@@ -1073,7 +1115,7 @@ public sealed class FormeFont
                     entry.Utf16Length,
                     entry.CodePoint,
                     lineIndex,
-                    0,
+                    entry.SectionIndex,
                     cursorX,
                     glyphBaselineY,
                     glyphLogicalBounds,
@@ -1218,7 +1260,7 @@ public sealed class FormeFont
             new TextLayoutRun(baseFormat, this, 0, job.Text.Length, 0, placements.Count, logicalBounds, visualBoundsResult, 0, lines.Count)
         ];
 
-        return new TextLayoutResult(job.Text, logicalBounds, visualBoundsResult, lines, runs, placements);
+        return new TextLayoutResult(job.Text, isElided, logicalBounds, visualBoundsResult, lines, runs, placements);
     }
 
     private static TextLayoutResult ApplyGeometrySnap(TextLayoutResult result, TextGeometrySnap geometrySnap)
@@ -1285,6 +1327,7 @@ public sealed class FormeFont
 
         return new TextLayoutResult(
             result.Text,
+            result.IsElided,
             Snap(result.LogicalBounds),
             Snap(result.VisualBounds),
             lines,
@@ -1332,13 +1375,18 @@ public sealed class FormeFont
         return new FormeTextBounds(0f, minY, maxLineWidth, maxY);
     }
 
-    private List<LineLayoutInfo> BuildLines(ReadOnlySpan<char> text, float scale, in TextLayoutOptions options)
+    private List<LineLayoutInfo> BuildLines(ReadOnlySpan<char> text, float scale, in TextLayoutOptions options, out bool isElided)
     {
+        ValidateMaxRows(in options);
+        ValidateOverflowCharacter(in options);
+        isElided = false;
+
         List<LineLayoutInfo> result = new();
 
         if (options.MaxWidth.HasValue && options.EllipsisMode != EllipsisMode.None)
         {
             BuildEllipsisLine(text, scale, in options, result);
+            ApplyMaxRows(result, scale, in options, out isElided);
             return result;
         }
 
@@ -1366,17 +1414,24 @@ public sealed class FormeFont
             lineStart = lineStart + newlineAt + 1;
         }
 
+        ApplyMaxRows(result, scale, in options, out isElided);
         return result;
     }
 
-    private List<JobLineLayoutInfo> BuildLines(TextLayoutJob job, SectionLayoutInfo[] sectionInfos)
+    private List<JobLineLayoutInfo> BuildLines(TextLayoutJob job, SectionLayoutInfo[] sectionInfos, out bool isElided)
     {
+        TextLayoutOptions layoutOptions = job.LayoutOptions;
+        ValidateMaxRows(in layoutOptions);
+        ValidateOverflowCharacter(in layoutOptions);
+        isElided = false;
+
         List<JobLineLayoutInfo> result = new();
         ReadOnlySpan<char> text = job.Text.AsSpan();
 
-        if (job.LayoutOptions.MaxWidth.HasValue && job.LayoutOptions.EllipsisMode != EllipsisMode.None)
+        if (layoutOptions.MaxWidth.HasValue && layoutOptions.EllipsisMode != EllipsisMode.None)
         {
             BuildEllipsisLine(text, job, sectionInfos, result);
+            ApplyMaxRows(result, job, sectionInfos, out isElided);
             return result;
         }
 
@@ -1404,7 +1459,91 @@ public sealed class FormeFont
             lineStart = lineStart + newlineAt + 1;
         }
 
+        ApplyMaxRows(result, job, sectionInfos, out isElided);
         return result;
+    }
+
+    private void ApplyMaxRows(List<LineLayoutInfo> lines, float scale, in TextLayoutOptions options, out bool isElided)
+    {
+        isElided = false;
+        if (!options.MaxRows.HasValue || lines.Count <= options.MaxRows.Value)
+        {
+            return;
+        }
+
+        int maxRows = options.MaxRows.Value;
+        isElided = true;
+        while (lines.Count > maxRows)
+        {
+            lines.RemoveAt(lines.Count - 1);
+        }
+
+        if (lines.Count == 0)
+        {
+            return;
+        }
+
+        string? overflowCharacter = GetOverflowCharacter(in options);
+        if (overflowCharacter is null)
+        {
+            return;
+        }
+
+        LineLayoutInfo line = lines[lines.Count - 1];
+        List<CodePointEntry> entries = CopyEntries(line.Entries);
+        int overflowCodePoint = DecodeSingleOverflowCodePoint(overflowCharacter);
+        entries.Add(new CodePointEntry(GetSourceEnd(entries, line.TextStart), overflowCodePoint, 0));
+
+        while (options.MaxWidth.HasValue && entries.Count > 1 && MeasureLineWidth(entries, scale, options.CharacterSpacing) > options.MaxWidth.Value)
+        {
+            entries.RemoveAt(entries.Count - 2);
+            entries[entries.Count - 1] = new CodePointEntry(GetSourceEnd(entries, line.TextStart), overflowCodePoint, 0);
+        }
+
+        lines[lines.Count - 1] = CreateTruncatedLineLayoutInfo(entries, line.TextStart);
+    }
+
+    private void ApplyMaxRows(List<JobLineLayoutInfo> lines, TextLayoutJob job, SectionLayoutInfo[] sectionInfos, out bool isElided)
+    {
+        TextLayoutOptions layoutOptions = job.LayoutOptions;
+        isElided = false;
+        if (!layoutOptions.MaxRows.HasValue || lines.Count <= layoutOptions.MaxRows.Value)
+        {
+            return;
+        }
+
+        int maxRows = layoutOptions.MaxRows.Value;
+        isElided = true;
+        while (lines.Count > maxRows)
+        {
+            lines.RemoveAt(lines.Count - 1);
+        }
+
+        if (lines.Count == 0)
+        {
+            return;
+        }
+
+        string? overflowCharacter = GetOverflowCharacter(in layoutOptions);
+        if (overflowCharacter is null)
+        {
+            return;
+        }
+
+        JobLineLayoutInfo line = lines[lines.Count - 1];
+        List<JobCodePointEntry> entries = CopyEntries(line.Entries);
+        int sectionIndex = GetOverflowSectionIndex(entries, line.TextStart, job);
+        int overflowCodePoint = DecodeSingleOverflowCodePoint(overflowCharacter);
+        entries.Add(new JobCodePointEntry(GetSourceEnd(entries, line.TextStart), overflowCodePoint, 0, sectionIndex));
+
+        while (layoutOptions.MaxWidth.HasValue && entries.Count > 1 && MeasureLineWidth(entries, sectionInfos) > layoutOptions.MaxWidth.Value)
+        {
+            entries.RemoveAt(entries.Count - 2);
+            sectionIndex = GetOverflowSectionIndex(entries, line.TextStart, job);
+            entries[entries.Count - 1] = new JobCodePointEntry(GetSourceEnd(entries, line.TextStart), overflowCodePoint, 0, sectionIndex);
+        }
+
+        lines[lines.Count - 1] = CreateTruncatedLineLayoutInfo(entries, line.TextStart);
     }
 
     private void WrapSegment(
@@ -1823,6 +1962,71 @@ public sealed class FormeFont
         return list;
     }
 
+    private static List<CodePointEntry> CopyEntries(List<CodePointEntry> entries)
+    {
+        List<CodePointEntry> copy = new(entries.Count);
+        for (int i = 0; i < entries.Count; i++)
+        {
+            copy.Add(entries[i]);
+        }
+
+        return copy;
+    }
+
+    private static List<JobCodePointEntry> CopyEntries(List<JobCodePointEntry> entries)
+    {
+        List<JobCodePointEntry> copy = new(entries.Count);
+        for (int i = 0; i < entries.Count; i++)
+        {
+            copy.Add(entries[i]);
+        }
+
+        return copy;
+    }
+
+    private static int GetSourceEnd(List<CodePointEntry> entries, int fallback)
+    {
+        int sourceEnd = fallback;
+        for (int i = 0; i < entries.Count; i++)
+        {
+            CodePointEntry entry = entries[i];
+            if (entry.Utf16Length > 0)
+            {
+                sourceEnd = entry.Index + entry.Utf16Length;
+            }
+        }
+
+        return sourceEnd;
+    }
+
+    private static int GetSourceEnd(List<JobCodePointEntry> entries, int fallback)
+    {
+        int sourceEnd = fallback;
+        for (int i = 0; i < entries.Count; i++)
+        {
+            JobCodePointEntry entry = entries[i];
+            if (entry.Utf16Length > 0)
+            {
+                sourceEnd = entry.Index + entry.Utf16Length;
+            }
+        }
+
+        return sourceEnd;
+    }
+
+    private static int GetOverflowSectionIndex(List<JobCodePointEntry> entries, int fallbackTextStart, TextLayoutJob job)
+    {
+        for (int i = entries.Count - 1; i >= 0; i--)
+        {
+            if (entries[i].Utf16Length > 0)
+            {
+                return entries[i].SectionIndex;
+            }
+        }
+
+        return GetSectionIndexForTextPosition(fallbackTextStart, job.Sections, job.Text.Length);
+    }
+
     private static List<JobCodePointEntry> DecodeSegment(ReadOnlySpan<char> segment, int offset, IReadOnlyList<TextSection> sections)
     {
         List<JobCodePointEntry> list = new(segment.Length);
@@ -1857,6 +2061,58 @@ public sealed class FormeFont
         }
 
         return list;
+    }
+
+    private static LineLayoutInfo CreateTruncatedLineLayoutInfo(List<CodePointEntry> entries, int fallbackTextStart)
+    {
+        int textStart = fallbackTextStart;
+        int textLength = 0;
+        bool foundSource = false;
+
+        for (int i = 0; i < entries.Count; i++)
+        {
+            CodePointEntry entry = entries[i];
+            if (entry.Utf16Length <= 0)
+            {
+                continue;
+            }
+
+            if (!foundSource)
+            {
+                textStart = entry.Index;
+                foundSource = true;
+            }
+
+            textLength = entry.Index + entry.Utf16Length - textStart;
+        }
+
+        return new LineLayoutInfo(entries, textStart, textLength);
+    }
+
+    private static JobLineLayoutInfo CreateTruncatedLineLayoutInfo(List<JobCodePointEntry> entries, int fallbackTextStart)
+    {
+        int textStart = fallbackTextStart;
+        int textLength = 0;
+        bool foundSource = false;
+
+        for (int i = 0; i < entries.Count; i++)
+        {
+            JobCodePointEntry entry = entries[i];
+            if (entry.Utf16Length <= 0)
+            {
+                continue;
+            }
+
+            if (!foundSource)
+            {
+                textStart = entry.Index;
+                foundSource = true;
+            }
+
+            textLength = entry.Index + entry.Utf16Length - textStart;
+        }
+
+        return new JobLineLayoutInfo(entries, textStart, textLength);
     }
 
     private static LineLayoutInfo CreateLineLayoutInfo(List<CodePointEntry> entries, int textStart, int textLength)
@@ -1942,6 +2198,53 @@ public sealed class FormeFont
 
             textIndex += charsConsumed;
         }
+    }
+
+    private static TextLayoutResult CreateEmptyLayoutResult(string text, bool isElided)
+    {
+        return new TextLayoutResult(text, isElided, FormeTextBounds.Empty, FormeTextBounds.Empty, [], [], []);
+    }
+
+    private static bool IsMaxRowsZero(in TextLayoutOptions options)
+    {
+        return options.MaxRows.HasValue && options.MaxRows.Value == 0;
+    }
+
+    private static void ValidateMaxRows(in TextLayoutOptions options)
+    {
+        if (options.MaxRows.HasValue && options.MaxRows.Value < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), "MaxRows cannot be negative.");
+        }
+    }
+
+    private static void ValidateOverflowCharacter(in TextLayoutOptions options)
+    {
+        string? overflowCharacter = GetOverflowCharacter(in options);
+        if (overflowCharacter is not null)
+        {
+            DecodeSingleOverflowCodePoint(overflowCharacter);
+        }
+    }
+
+    private static string? GetOverflowCharacter(in TextLayoutOptions options)
+    {
+        return options.OverflowCharacter is null
+            ? "\u2026"
+            : options.OverflowCharacter.Length == 0
+                ? null
+                : options.OverflowCharacter;
+    }
+
+    private static int DecodeSingleOverflowCodePoint(string overflowCharacter)
+    {
+        OperationStatus status = Rune.DecodeFromUtf16(overflowCharacter.AsSpan(), out Rune rune, out int charsConsumed);
+        if (status != OperationStatus.Done || charsConsumed != overflowCharacter.Length)
+        {
+            throw new ArgumentException("OverflowCharacter must be empty or contain exactly one Unicode scalar value.", nameof(overflowCharacter));
+        }
+
+        return rune.Value;
     }
 
     private static float GetScale(FormeFont font, float sizePixels)

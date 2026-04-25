@@ -24,6 +24,25 @@ public readonly struct TextLayoutOptions
     public float? MaxWidth { get; init; }
 
     /// <summary>
+    /// Gets the maximum number of laid-out rows. When <see langword="null"/>, all rows are kept.
+    /// </summary>
+    /// <remarks>
+    /// When the limit is reached, later rows are discarded and the overflow character is appended
+    /// to the final retained row. A value of zero produces no rows and marks the result as elided.
+    /// </remarks>
+    public int? MaxRows { get; init; }
+
+    /// <summary>
+    /// Gets the character appended to the final row when <see cref="MaxRows"/> truncates text.
+    /// </summary>
+    /// <remarks>
+    /// When <see langword="null"/>, U+2026 is used. Set this to <see cref="string.Empty"/> to
+    /// suppress the marker while still truncating rows. Non-empty values must contain one Unicode
+    /// scalar value.
+    /// </remarks>
+    public string? OverflowCharacter { get; init; }
+
+    /// <summary>
     /// Gets the horizontal alignment of each line relative to the draw origin.
     /// </summary>
     public TextHorizontalAlignment Alignment { get; init; }
