@@ -472,58 +472,34 @@ public sealed class FormeFont
         {
             int lineIndex = lines.Count;
             float lineWidth = MeasureLineWidth(codePointLine.Entries, scale, options.CharacterSpacing);
-            LineAlignmentMetrics alignmentMetrics = GetLineAlignmentMetrics(codePointLine.Entries, lineWidth, scale, options.CharacterSpacing, in options);
-            float measuredLineWidth = options.Alignment == TextHorizontalAlignment.Left
-                ? lineWidth
-                : alignmentMetrics.Width;
-            if (measuredLineWidth > maxLineWidth)
+             bool justifyLine = ShouldJustifyLine(in options, text, lineIndex, codePointLines.Count, codePointLine.TextStart + codePointLine.TextLength);
+            LinePositioning linePositioning = ComputeLinePositioning(codePointLine.Entries, lineWidth, scale, options.CharacterSpacing, in options, justifyLine);
+            if (linePositioning.Width > maxLineWidth)
             {
-                maxLineWidth = measuredLineWidth;
+                maxLineWidth = linePositioning.Width;
             }
 
-            float lineOriginX = options.Alignment switch
-            {
-                TextHorizontalAlignment.Center => (-alignmentMetrics.Width * 0.5f) - alignmentMetrics.PrefixWidth,
-                TextHorizontalAlignment.Right => -alignmentMetrics.Width - alignmentMetrics.PrefixWidth,
-                _ => 0f
-            };
-            float lineBoundsX = options.Alignment switch
-            {
-                TextHorizontalAlignment.Center => -alignmentMetrics.Width * 0.5f,
-                TextHorizontalAlignment.Right => -alignmentMetrics.Width,
-                _ => lineOriginX
-            };
-            float lineBoundsWidth = options.Alignment == TextHorizontalAlignment.Left
-                ? lineWidth
-                : alignmentMetrics.Width;
-
             int glyphStart = placements.Count;
-            float cursorX = lineOriginX;
-            int previousCodePoint = 0;
-            bool hasPreviousGlyph = false;
             bool lineHasVisibleBounds = false;
             float lineMinX = 0f;
             float lineMinY = 0f;
             float lineMaxX = 0f;
             float lineMaxY = 0f;
 
-            foreach (CodePointEntry entry in codePointLine.Entries)
+            for (int entryIndex = 0; entryIndex < codePointLine.Entries.Count; entryIndex++)
             {
+                CodePointEntry entry = codePointLine.Entries[entryIndex];
                 if (Glyphs.TryGetValue(entry.CodePoint, out FormeGlyph glyph))
                 {
-                    if (hasPreviousGlyph)
-                    {
-                        cursorX += GetPairAdvanceAdjustment(previousCodePoint, entry.CodePoint, scale);
-                    }
-
+                    float glyphX = linePositioning.EntryStartXs[entryIndex];
                     float advance = glyph.AdvanceWidth * scale + options.CharacterSpacing;
                     FormeTextBounds glyphLogicalBounds = new FormeTextBounds(
-                        cursorX,
+                        glyphX,
                         cursorY - scaledMetrics.BaselineToTop,
-                        cursorX + advance,
+                        glyphX + advance,
                         cursorY + scaledMetrics.BaselineToBottom);
-                    FormeTextBounds visualBounds = ComputeVisualBounds(in glyph, cursorX, cursorY, scale);
-                    placements.Add(new GlyphPlacement(this, entry.Index, entry.Utf16Length, entry.CodePoint, lineIndex, 0, cursorX, cursorY, glyphLogicalBounds, visualBounds, advance));
+                    FormeTextBounds visualBounds = ComputeVisualBounds(in glyph, glyphX, cursorY, scale);
+                    placements.Add(new GlyphPlacement(this, entry.Index, entry.Utf16Length, entry.CodePoint, lineIndex, 0, glyphX, cursorY, glyphLogicalBounds, visualBounds, advance));
 
                     if (visualBounds.Width > 0f && visualBounds.Height > 0f)
                     {
@@ -583,17 +559,13 @@ public sealed class FormeFont
                             }
                         }
                     }
-
-                    cursorX += advance;
-                    previousCodePoint = entry.CodePoint;
-                    hasPreviousGlyph = true;
                 }
             }
 
             FormeTextBounds lineLogicalBounds = new FormeTextBounds(
-                lineBoundsX,
+                linePositioning.BoundsX,
                 cursorY - scaledMetrics.BaselineToTop,
-                lineBoundsX + lineBoundsWidth,
+                linePositioning.BoundsX + linePositioning.Width,
                 cursorY + scaledMetrics.BaselineToBottom);
             FormeTextBounds lineVisualBounds = lineHasVisibleBounds
                 ? new FormeTextBounds(lineMinX, lineMinY, lineMaxX, lineMaxY)
@@ -606,7 +578,7 @@ public sealed class FormeFont
                 lineHeight,
                 scaledMetrics.Ascent,
                 scaledMetrics.Descent,
-                lineBoundsWidth,
+                linePositioning.Width,
                 lineLogicalBounds,
                 lineVisualBounds,
                 glyphStart,
@@ -1080,35 +1052,14 @@ public sealed class FormeFont
             JobLineLayoutInfo codePointLine = codePointLines[lineIndex];
             TextLayoutOptions layoutOptions = job.LayoutOptions;
             float lineWidth = MeasureLineWidth(codePointLine.Entries, sectionInfos);
-            LineAlignmentMetrics alignmentMetrics = GetLineAlignmentMetrics(codePointLine.Entries, lineWidth, sectionInfos, in layoutOptions);
-            float measuredLineWidth = layoutOptions.Alignment == TextHorizontalAlignment.Left
-                ? lineWidth
-                : alignmentMetrics.Width;
-            if (measuredLineWidth > maxLineWidth)
+            bool justifyLine = ShouldJustifyLine(in layoutOptions, job.Text.AsSpan(), lineIndex, codePointLines.Count, codePointLine.TextStart + codePointLine.TextLength);
+            LinePositioning linePositioning = ComputeLinePositioning(codePointLine.Entries, lineWidth, sectionInfos, in layoutOptions, justifyLine);
+            if (linePositioning.Width > maxLineWidth)
             {
-                maxLineWidth = measuredLineWidth;
+                maxLineWidth = linePositioning.Width;
             }
 
-            float lineOriginX = layoutOptions.Alignment switch
-            {
-                TextHorizontalAlignment.Center => (-alignmentMetrics.Width * 0.5f) - alignmentMetrics.PrefixWidth,
-                TextHorizontalAlignment.Right => -alignmentMetrics.Width - alignmentMetrics.PrefixWidth,
-                _ => 0f
-            };
-            float lineBoundsX = layoutOptions.Alignment switch
-            {
-                TextHorizontalAlignment.Center => -alignmentMetrics.Width * 0.5f,
-                TextHorizontalAlignment.Right => -alignmentMetrics.Width,
-                _ => lineOriginX
-            };
-            float lineBoundsWidth = layoutOptions.Alignment == TextHorizontalAlignment.Left
-                ? lineWidth
-                : alignmentMetrics.Width;
-
             int glyphStart = placements.Count;
-            float cursorX = lineOriginX;
-            JobCodePointEntry previousEntry = default;
-            bool hasPreviousGlyph = false;
             bool lineHasVisibleBounds = false;
             float lineMinX = 0f;
             float lineMinY = 0f;
@@ -1133,20 +1084,15 @@ public sealed class FormeFont
                 FormeGlyph glyph = resolvedGlyphFont.Glyphs[entry.CodePoint];
                 float glyphScale = GetScale(resolvedGlyphFont, sectionInfo.Format.SizePixels);
                 ScaledFontMetrics glyphMetrics = resolvedGlyphFont.GetScaledMetrics(sectionInfo.Format.SizePixels);
-
-                if (hasPreviousGlyph)
-                {
-                    cursorX += GetJobPairAdvanceAdjustment(previousEntry, entry, sectionInfos);
-                }
-
+                float glyphX = linePositioning.EntryStartXs[i];
                 float advance = glyph.AdvanceWidth * glyphScale + sectionInfo.CharacterSpacing;
                 float glyphBaselineY = cursorY + sectionInfo.BaselineShift;
                 FormeTextBounds glyphLogicalBounds = new FormeTextBounds(
-                    cursorX,
+                    glyphX,
                     glyphBaselineY - glyphMetrics.BaselineToTop,
-                    cursorX + advance,
+                    glyphX + advance,
                     glyphBaselineY + glyphMetrics.BaselineToBottom);
-                FormeTextBounds visualBounds = ComputeVisualBounds(in glyph, cursorX, glyphBaselineY, glyphScale);
+                FormeTextBounds visualBounds = ComputeVisualBounds(in glyph, glyphX, glyphBaselineY, glyphScale);
                 placements.Add(new GlyphPlacement(
                     resolvedGlyphFont,
                     entry.Index,
@@ -1154,7 +1100,7 @@ public sealed class FormeFont
                     entry.CodePoint,
                     lineIndex,
                     entry.SectionIndex,
-                    cursorX,
+                    glyphX,
                     glyphBaselineY,
                     glyphLogicalBounds,
                     visualBounds,
@@ -1247,10 +1193,6 @@ public sealed class FormeFont
                         }
                     }
                 }
-
-                cursorX += advance;
-                previousEntry = entry;
-                hasPreviousGlyph = true;
             }
 
             if (codePointLine.Entries.Count == 0)
@@ -1263,9 +1205,9 @@ public sealed class FormeFont
             }
 
             FormeTextBounds lineLogicalBounds = new FormeTextBounds(
-                lineBoundsX,
+                linePositioning.BoundsX,
                 cursorY - lineAscent,
-                lineBoundsX + lineBoundsWidth,
+                linePositioning.BoundsX + linePositioning.Width,
                 cursorY + lineBottom);
             FormeTextBounds lineVisualBounds = lineHasVisibleBounds
                 ? new FormeTextBounds(lineMinX, lineMinY, lineMaxX, lineMaxY)
@@ -1278,7 +1220,7 @@ public sealed class FormeFont
                 lineAdvance,
                 lineAscent,
                 lineDescent,
-                lineBoundsWidth,
+                linePositioning.Width,
                 lineLogicalBounds,
                 lineVisualBounds,
                 glyphStart,
@@ -1999,33 +1941,16 @@ public sealed class FormeFont
         return width;
     }
 
-    private LineAlignmentMetrics GetLineAlignmentMetrics(List<CodePointEntry> line, float lineWidth, float scale, float charSpacing, in TextLayoutOptions options)
+    private LinePositioning ComputeLinePositioning(List<CodePointEntry> line, float lineWidth, float scale, float charSpacing, in TextLayoutOptions options, bool justify)
     {
-        if (options.Alignment == TextHorizontalAlignment.Left || options.KeepTrailingWhitespace || line.Count == 0)
+        if (line.Count == 0)
         {
-            return new LineAlignmentMetrics(0f, lineWidth);
+            return new LinePositioning([], 0f, 0f);
         }
 
-        int rangeStart = 0;
-        while (rangeStart < line.Count && IsWhitespace(line[rangeStart].CodePoint))
-        {
-            rangeStart++;
-        }
-
-        if (rangeStart == line.Count)
-        {
-            return new LineAlignmentMetrics(0f, lineWidth);
-        }
-
-        int rangeEnd = line.Count;
-        while (rangeEnd > rangeStart && IsWhitespace(line[rangeEnd - 1].CodePoint))
-        {
-            rangeEnd--;
-        }
-
+        float[] entryStartXs = new float[line.Count];
+        float[] entryAdvances = new float[line.Count];
         float cursorX = 0f;
-        float rangeMinX = 0f;
-        float rangeMaxX = 0f;
         int previousCodePoint = 0;
         bool hasPreviousGlyph = false;
 
@@ -2047,25 +1972,13 @@ public sealed class FormeFont
                 hasPreviousGlyph = true;
             }
 
-            if (i == rangeStart)
-            {
-                rangeMinX = entryStartX;
-            }
-
-            if (i + 1 == rangeEnd)
-            {
-                rangeMaxX = entryStartX + advance;
-            }
+            entryStartXs[i] = entryStartX;
+            entryAdvances[i] = advance;
         }
 
-        return new LineAlignmentMetrics(rangeMinX, rangeMaxX - rangeMinX);
-    }
-
-    private LineAlignmentMetrics GetLineAlignmentMetrics(List<JobCodePointEntry> line, float lineWidth, SectionLayoutInfo[] sectionInfos, in TextLayoutOptions options)
-    {
-        if (options.Alignment == TextHorizontalAlignment.Left || options.KeepTrailingWhitespace || line.Count == 0)
+        if (!justify && options.Alignment == TextHorizontalAlignment.Left)
         {
-            return new LineAlignmentMetrics(0f, lineWidth);
+            return new LinePositioning(entryStartXs, 0f, lineWidth);
         }
 
         int rangeStart = 0;
@@ -2074,20 +1987,89 @@ public sealed class FormeFont
             rangeStart++;
         }
 
+        int rangeEnd;
         if (rangeStart == line.Count)
         {
-            return new LineAlignmentMetrics(0f, lineWidth);
+            rangeStart = 0;
+            rangeEnd = line.Count;
         }
-
-        int rangeEnd = line.Count;
-        while (rangeEnd > rangeStart && IsWhitespace(line[rangeEnd - 1].CodePoint))
+        else if (options.KeepTrailingWhitespace)
         {
-            rangeEnd--;
+            rangeEnd = line.Count;
+        }
+        else
+        {
+            rangeEnd = line.Count;
+            while (rangeEnd > rangeStart && IsWhitespace(line[rangeEnd - 1].CodePoint))
+            {
+                rangeEnd--;
+            }
         }
 
+        float originalMinX = entryStartXs[rangeStart];
+        float originalMaxX = entryStartXs[rangeEnd - 1] + entryAdvances[rangeEnd - 1];
+        float originalWidth = originalMaxX - originalMinX;
+        int numGlyphsInRange = rangeEnd - rangeStart;
+        float targetWidth = justify && numGlyphsInRange > 1
+            ? options.MaxWidth!.Value
+            : originalWidth;
+        float targetMinX = options.Alignment switch
+        {
+            TextHorizontalAlignment.Center => -targetWidth * 0.5f,
+            TextHorizontalAlignment.Right => -targetWidth,
+            _ => 0f
+        };
+        int numSpacesInRange = 0;
+        for (int i = rangeStart; i < rangeEnd; i++)
+        {
+            if (IsWhitespace(line[i].CodePoint))
+            {
+                numSpacesInRange++;
+            }
+        }
+
+        float extraXPerGlyph = numGlyphsInRange == 1
+            ? 0f
+            : (targetWidth - originalWidth) / (numGlyphsInRange - 1f);
+        if (extraXPerGlyph < 0f)
+        {
+            extraXPerGlyph = 0f;
+        }
+
+        float extraXPerSpace = 0f;
+        if (numSpacesInRange > 0 && numSpacesInRange < numGlyphsInRange)
+        {
+            extraXPerGlyph = MathF.Floor(extraXPerGlyph);
+            extraXPerSpace = (targetWidth
+                - originalWidth
+                - (extraXPerGlyph * (numGlyphsInRange - 1f)))
+                / numSpacesInRange;
+        }
+
+        float translateX = targetMinX - originalMinX - (extraXPerGlyph * rangeStart);
+        for (int i = 0; i < line.Count; i++)
+        {
+            entryStartXs[i] += translateX;
+            translateX += extraXPerGlyph;
+            if (IsWhitespace(line[i].CodePoint))
+            {
+                translateX += extraXPerSpace;
+            }
+        }
+
+        return new LinePositioning(entryStartXs, targetMinX, targetWidth);
+    }
+
+    private LinePositioning ComputeLinePositioning(List<JobCodePointEntry> line, float lineWidth, SectionLayoutInfo[] sectionInfos, in TextLayoutOptions options, bool justify)
+    {
+        if (line.Count == 0)
+        {
+            return new LinePositioning([], 0f, 0f);
+        }
+
+        float[] entryStartXs = new float[line.Count];
+        float[] entryAdvances = new float[line.Count];
         float cursorX = 0f;
-        float rangeMinX = 0f;
-        float rangeMaxX = 0f;
         JobCodePointEntry previousEntry = default;
         bool hasPreviousGlyph = false;
 
@@ -2112,23 +2094,117 @@ public sealed class FormeFont
                 hasPreviousGlyph = true;
             }
 
-            if (i == rangeStart)
-            {
-                rangeMinX = entryStartX;
-            }
+            entryStartXs[i] = entryStartX;
+            entryAdvances[i] = advance;
+        }
 
-            if (i + 1 == rangeEnd)
+        if (!justify && options.Alignment == TextHorizontalAlignment.Left)
+        {
+            return new LinePositioning(entryStartXs, 0f, lineWidth);
+        }
+
+        int rangeStart = 0;
+        while (rangeStart < line.Count && IsWhitespace(line[rangeStart].CodePoint))
+        {
+            rangeStart++;
+        }
+
+        int rangeEnd;
+        if (rangeStart == line.Count)
+        {
+            rangeStart = 0;
+            rangeEnd = line.Count;
+        }
+        else if (options.KeepTrailingWhitespace)
+        {
+            rangeEnd = line.Count;
+        }
+        else
+        {
+            rangeEnd = line.Count;
+            while (rangeEnd > rangeStart && IsWhitespace(line[rangeEnd - 1].CodePoint))
             {
-                rangeMaxX = entryStartX + advance;
+                rangeEnd--;
             }
         }
 
-        return new LineAlignmentMetrics(rangeMinX, rangeMaxX - rangeMinX);
+        float originalMinX = entryStartXs[rangeStart];
+        float originalMaxX = entryStartXs[rangeEnd - 1] + entryAdvances[rangeEnd - 1];
+        float originalWidth = originalMaxX - originalMinX;
+        int numGlyphsInRange = rangeEnd - rangeStart;
+        float targetWidth = justify && numGlyphsInRange > 1
+            ? options.MaxWidth!.Value
+            : originalWidth;
+        float targetMinX = options.Alignment switch
+        {
+            TextHorizontalAlignment.Center => -targetWidth * 0.5f,
+            TextHorizontalAlignment.Right => -targetWidth,
+            _ => 0f
+        };
+        int numSpacesInRange = 0;
+        for (int i = rangeStart; i < rangeEnd; i++)
+        {
+            if (IsWhitespace(line[i].CodePoint))
+            {
+                numSpacesInRange++;
+            }
+        }
+
+        float extraXPerGlyph = numGlyphsInRange == 1
+            ? 0f
+            : (targetWidth - originalWidth) / (numGlyphsInRange - 1f);
+        if (extraXPerGlyph < 0f)
+        {
+            extraXPerGlyph = 0f;
+        }
+
+        float extraXPerSpace = 0f;
+        if (numSpacesInRange > 0 && numSpacesInRange < numGlyphsInRange)
+        {
+            extraXPerGlyph = MathF.Floor(extraXPerGlyph);
+            extraXPerSpace = (targetWidth
+                - originalWidth
+                - (extraXPerGlyph * (numGlyphsInRange - 1f)))
+                / numSpacesInRange;
+        }
+
+        float translateX = targetMinX - originalMinX - (extraXPerGlyph * rangeStart);
+        for (int i = 0; i < line.Count; i++)
+        {
+            entryStartXs[i] += translateX;
+            translateX += extraXPerGlyph;
+            if (IsWhitespace(line[i].CodePoint))
+            {
+                translateX += extraXPerSpace;
+            }
+        }
+
+        return new LinePositioning(entryStartXs, targetMinX, targetWidth);
     }
 
     private static bool IsWhitespace(int codePoint)
     {
         return Rune.IsWhiteSpace(new Rune(codePoint));
+    }
+
+    private static bool ShouldJustifyLine(in TextLayoutOptions options, ReadOnlySpan<char> text, int lineIndex, int lineCount, int lineTextEnd)
+    {
+        if (!options.Justify || !options.MaxWidth.HasValue || !float.IsFinite(options.MaxWidth.Value))
+        {
+            return false;
+        }
+
+        if (lineIndex + 1 == lineCount)
+        {
+            return false;
+        }
+
+        if (ShouldBreakOnNewline(in options) && lineTextEnd < text.Length && text[lineTextEnd] == '\n')
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private static List<CodePointEntry> DecodeSegment(ReadOnlySpan<char> segment, int offset, bool replaceNewlines = false)
@@ -2655,14 +2731,16 @@ public sealed class FormeFont
         }
     }
 
-    private readonly struct LineAlignmentMetrics
+    private readonly struct LinePositioning
     {
-        internal float PrefixWidth { get; }
+        internal float[] EntryStartXs { get; }
         internal float Width { get; }
+        internal float BoundsX { get; }
 
-        internal LineAlignmentMetrics(float prefixWidth, float width)
+        internal LinePositioning(float[] entryStartXs, float boundsX, float width)
         {
-            PrefixWidth = prefixWidth;
+            EntryStartXs = entryStartXs;
+            BoundsX = boundsX;
             Width = width;
         }
     }

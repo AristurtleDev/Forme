@@ -62,6 +62,11 @@ public readonly struct TextLayoutOptions
     public bool KeepTrailingWhitespace { get; init; }
 
     /// <summary>
+    /// Gets whether wrapped rows are stretched to fill <see cref="MaxWidth"/>.
+    /// </summary>
+    public bool Justify { get; init; }
+
+    /// <summary>
     /// Gets the horizontal alignment of each line relative to the draw origin.
     /// </summary>
     public TextHorizontalAlignment Alignment { get; init; }
