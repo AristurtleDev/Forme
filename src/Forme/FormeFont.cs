@@ -1583,7 +1583,7 @@ public sealed class FormeFont
                     break;
                 }
 
-                if (entry.CodePoint == ' ')
+                if (!options.BreakAnywhere && entry.CodePoint == ' ')
                 {
                     lastBreakAt = lineEnd;
                 }
@@ -1605,7 +1605,7 @@ public sealed class FormeFont
                 actualEnd = chars.Count;
                 nextStart = chars.Count;
             }
-            else if (lastBreakAt >= lineStart)
+            else if (!options.BreakAnywhere && lastBreakAt >= lineStart)
             {
                 // Break at the space; the space is not included on either line.
                 actualEnd = lastBreakAt;
@@ -1640,7 +1640,8 @@ public sealed class FormeFont
 
     private void WrapSegment(ReadOnlySpan<char> segment, int segmentOffset, TextLayoutJob job, SectionLayoutInfo[] sectionInfos, List<JobLineLayoutInfo> output)
     {
-        float maxWidth = job.LayoutOptions.MaxWidth!.Value;
+        TextLayoutOptions layoutOptions = job.LayoutOptions;
+        float maxWidth = layoutOptions.MaxWidth!.Value;
 
         List<JobCodePointEntry> chars = DecodeSegment(segment, segmentOffset, job.Sections);
         if (chars.Count == 0)
@@ -1668,7 +1669,7 @@ public sealed class FormeFont
                     break;
                 }
 
-                if (entry.CodePoint == ' ')
+                if (!layoutOptions.BreakAnywhere && entry.CodePoint == ' ')
                 {
                     lastBreakAt = lineEnd;
                 }
@@ -1690,7 +1691,7 @@ public sealed class FormeFont
                 actualEnd = chars.Count;
                 nextStart = chars.Count;
             }
-            else if (lastBreakAt >= lineStart)
+            else if (!layoutOptions.BreakAnywhere && lastBreakAt >= lineStart)
             {
                 actualEnd = lastBreakAt;
                 nextStart = lastBreakAt + 1;

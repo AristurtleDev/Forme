@@ -43,6 +43,11 @@ public readonly struct TextLayoutOptions
     public string? OverflowCharacter { get; init; }
 
     /// <summary>
+    /// Gets whether wrapping may break between any two characters instead of preferring word boundaries.
+    /// </summary>
+    public bool BreakAnywhere { get; init; }
+
+    /// <summary>
     /// Gets the horizontal alignment of each line relative to the draw origin.
     /// </summary>
     public TextHorizontalAlignment Alignment { get; init; }

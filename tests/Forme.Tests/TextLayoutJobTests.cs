@@ -168,6 +168,61 @@ public class TextLayoutJobTests
     }
 
     [Fact]
+    public void LayoutText_WrapWithoutBreakAnywhere_PrefersWordBoundary()
+    {
+        FormeFont font = LoadTestFont();
+        float prefixWidth = font.MeasureLogicalBounds("AA ".AsSpan(), 20f).Width;
+        float overflowingWidth = font.MeasureLogicalBounds("AA B".AsSpan(), 20f).Width;
+        TextLayoutOptions options = new TextLayoutOptions
+        {
+            MaxWidth = prefixWidth + (overflowingWidth - prefixWidth) * 0.5f
+        };
+
+        TextLayoutResult result = font.LayoutText("AA BB".AsSpan(), 20f, in options);
+
+        Assert.Equal(2, result.Lines[0].TextLength);
+        Assert.Equal(3, result.Lines[1].TextStart);
+    }
+
+    [Fact]
+    public void LayoutText_WrapWithBreakAnywhere_UsesLastFittingCharacterBoundary()
+    {
+        FormeFont font = LoadTestFont();
+        float prefixWidth = font.MeasureLogicalBounds("AA ".AsSpan(), 20f).Width;
+        float overflowingWidth = font.MeasureLogicalBounds("AA B".AsSpan(), 20f).Width;
+        TextLayoutOptions options = new TextLayoutOptions
+        {
+            MaxWidth = prefixWidth + (overflowingWidth - prefixWidth) * 0.5f,
+            BreakAnywhere = true
+        };
+
+        TextLayoutResult result = font.LayoutText("AA BB".AsSpan(), 20f, in options);
+
+        Assert.Equal(3, result.Lines[0].TextLength);
+        Assert.Equal(3, result.Lines[1].TextStart);
+    }
+
+    [Fact]
+    public void LayoutText_JobWrapWithBreakAnywhere_UsesLastFittingCharacterBoundary()
+    {
+        FormeFont font = LoadTestFont();
+        TextFormat format = new TextFormat(font, 20f);
+        float prefixWidth = font.MeasureLogicalBounds("AA ".AsSpan(), 20f).Width;
+        float overflowingWidth = font.MeasureLogicalBounds("AA B".AsSpan(), 20f).Width;
+        TextLayoutOptions options = new TextLayoutOptions
+        {
+            MaxWidth = prefixWidth + (overflowingWidth - prefixWidth) * 0.5f,
+            BreakAnywhere = true
+        };
+        TextLayoutJob job = TextLayoutJob.CreatePlain("AA BB", format, options);
+
+        TextLayoutResult result = font.LayoutText(job);
+
+        Assert.Equal(3, result.Lines[0].TextLength);
+        Assert.Equal(3, result.Lines[1].TextStart);
+    }
+
+    [Fact]
     public void TextFormat_FontChainConstructor_UsesPrimaryFontForCompatibility()
     {
         FormeFont primaryFont = LoadTestFont();
