@@ -1054,6 +1054,7 @@ public sealed class FormeFont
             float lineWidth = MeasureLineWidth(codePointLine.Entries, sectionInfos);
             bool justifyLine = ShouldJustifyLine(in layoutOptions, job.Text.AsSpan(), lineIndex, codePointLines.Count, codePointLine.TextStart + codePointLine.TextLength);
             LinePositioning linePositioning = ComputeLinePositioning(codePointLine.Entries, lineWidth, sectionInfos, in layoutOptions, justifyLine);
+            float maxLineAdvance = GetMaxLineAdvance(codePointLine, sectionInfos, job.Sections, job.Text.Length);
             if (linePositioning.Width > maxLineWidth)
             {
                 maxLineWidth = linePositioning.Width;
@@ -1086,7 +1087,8 @@ public sealed class FormeFont
                 ScaledFontMetrics glyphMetrics = resolvedGlyphFont.GetScaledMetrics(sectionInfo.Format.SizePixels);
                 float glyphX = linePositioning.EntryStartXs[i];
                 float advance = glyph.AdvanceWidth * glyphScale + sectionInfo.CharacterSpacing;
-                float glyphBaselineY = cursorY + sectionInfo.BaselineShift;
+                float baselineOffset = GetVerticalAlignmentOffset(sectionInfo, glyphMetrics, maxLineAdvance) + sectionInfo.BaselineShift;
+                float glyphBaselineY = cursorY + baselineOffset;
                 FormeTextBounds glyphLogicalBounds = new FormeTextBounds(
                     glyphX,
                     glyphBaselineY - glyphMetrics.BaselineToTop,
@@ -1106,19 +1108,19 @@ public sealed class FormeFont
                     visualBounds,
                     advance));
 
-                float sectionAscent = glyphMetrics.Ascent - sectionInfo.BaselineShift;
+                float sectionAscent = glyphMetrics.Ascent - baselineOffset;
                 if (sectionAscent > lineAscent)
                 {
                     lineAscent = sectionAscent;
                 }
 
-                float sectionDescent = glyphMetrics.Descent - sectionInfo.BaselineShift;
+                float sectionDescent = glyphMetrics.Descent - baselineOffset;
                 if (sectionDescent < lineDescent)
                 {
                     lineDescent = sectionDescent;
                 }
 
-                float sectionBottom = glyphMetrics.BaselineToBottom + sectionInfo.BaselineShift;
+                float sectionBottom = glyphMetrics.BaselineToBottom + baselineOffset;
                 if (sectionBottom > lineBottom)
                 {
                     lineBottom = sectionBottom;
@@ -2617,10 +2619,49 @@ public sealed class FormeFont
                 scale,
                 lineHeight + job.LayoutOptions.LineSpacing,
                 format.CharacterSpacing + job.LayoutOptions.CharacterSpacing,
-                format.BaselineShift);
+                format.BaselineShift,
+                format.VerticalAlignment);
         }
 
         return result;
+    }
+
+    private static float GetMaxLineAdvance(JobLineLayoutInfo line, SectionLayoutInfo[] sectionInfos, IReadOnlyList<TextSection> sections, int textLength)
+    {
+        if (line.Entries.Count == 0)
+        {
+            int emptyLineSectionIndex = GetSectionIndexForTextPosition(line.TextStart, sections, textLength);
+            return sectionInfos[emptyLineSectionIndex].LineAdvance;
+        }
+
+        float maxLineAdvance = 0f;
+        for (int i = 0; i < line.Entries.Count; i++)
+        {
+            float entryLineAdvance = sectionInfos[line.Entries[i].SectionIndex].LineAdvance;
+            if (entryLineAdvance > maxLineAdvance)
+            {
+                maxLineAdvance = entryLineAdvance;
+            }
+        }
+
+        return maxLineAdvance;
+    }
+
+    private static float GetVerticalAlignmentOffset(SectionLayoutInfo sectionInfo, ScaledFontMetrics glyphMetrics, float maxLineAdvance)
+    {
+        float rowAlignmentOffset = GetVerticalAlignmentFactor(sectionInfo.VerticalAlignment) * (maxLineAdvance - sectionInfo.LineAdvance);
+        float fallbackCenteringOffset = 0.5f * (sectionInfo.Metrics.LineHeight - glyphMetrics.LineHeight);
+        return rowAlignmentOffset + fallbackCenteringOffset;
+    }
+
+    private static float GetVerticalAlignmentFactor(TextVerticalAlignment alignment)
+    {
+        return alignment switch
+        {
+            TextVerticalAlignment.Top => 0f,
+            TextVerticalAlignment.Center => 0.5f,
+            _ => 1f
+        };
     }
 
     private static int GetSectionIndexForTextPosition(int textIndex, IReadOnlyList<TextSection> sections, int textLength)
@@ -2713,6 +2754,7 @@ public sealed class FormeFont
         internal float LineAdvance { get; }
         internal float CharacterSpacing { get; }
         internal float BaselineShift { get; }
+        internal TextVerticalAlignment VerticalAlignment { get; }
 
         internal SectionLayoutInfo(
             TextFormat format,
@@ -2720,7 +2762,8 @@ public sealed class FormeFont
             float scale,
             float lineAdvance,
             float characterSpacing,
-            float baselineShift)
+            float baselineShift,
+            TextVerticalAlignment verticalAlignment)
         {
             Format = format;
             Metrics = metrics;
@@ -2728,6 +2771,7 @@ public sealed class FormeFont
             LineAdvance = lineAdvance;
             CharacterSpacing = characterSpacing;
             BaselineShift = baselineShift;
+            VerticalAlignment = verticalAlignment;
         }
     }
 

@@ -9,6 +9,10 @@ namespace Forme;
 /// <summary>
 /// Describes the format of a contiguous section of text.
 /// </summary>
+// Intentionally a readonly struct: text formatting is treated as an immutable value snapshot that
+// can be copied into sections, runs, and layout results without introducing shared mutable
+// identity. The font references are shared resources, but the format itself uses value semantics,
+// so a class would add aliasing without providing a useful identity model.
 public readonly struct TextFormat
 {
     /// <summary>
@@ -67,6 +71,11 @@ public readonly struct TextFormat
     /// Positive values move text downward; negative values move it upward.
     /// </summary>
     public float BaselineShift { get; init; }
+
+    /// <summary>
+    /// Gets how this section is aligned vertically when a line mixes different sizes or styles.
+    /// </summary>
+    public TextVerticalAlignment VerticalAlignment { get; init; }
 
     /// <summary>
     /// Gets whether this format contains the minimum information needed to lay out text.
@@ -140,6 +149,7 @@ public readonly struct TextFormat
         CharacterSpacing = 0f;
         LineHeightPixels = null;
         BaselineShift = 0f;
+        VerticalAlignment = TextVerticalAlignment.Bottom;
     }
 
     /// <summary>
@@ -165,5 +175,6 @@ public readonly struct TextFormat
         CharacterSpacing = 0f;
         LineHeightPixels = null;
         BaselineShift = 0f;
+        VerticalAlignment = TextVerticalAlignment.Bottom;
     }
 }
