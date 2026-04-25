@@ -57,6 +57,11 @@ public readonly struct TextLayoutOptions
     public bool? BreakOnNewline { get; init; }
 
     /// <summary>
+    /// Gets whether trailing whitespace is included when computing horizontal alignment.
+    /// </summary>
+    public bool KeepTrailingWhitespace { get; init; }
+
+    /// <summary>
     /// Gets the horizontal alignment of each line relative to the draw origin.
     /// </summary>
     public TextHorizontalAlignment Alignment { get; init; }
