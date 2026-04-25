@@ -73,6 +73,16 @@ public readonly struct TextFormat
     public float BaselineShift { get; init; }
 
     /// <summary>
+    /// Gets the font variation-axis coordinates for this section.
+    /// </summary>
+    /// <remarks>
+    /// Forme preserves these coordinates on the formatting surface and in layout results.
+    /// The current preprocessed font backend does not yet re-instance glyph outlines or metrics
+    /// from these coordinates.
+    /// </remarks>
+    public FontVariationCoordinates VariationCoordinates { get; init; }
+
+    /// <summary>
     /// Gets how this section is aligned vertically when a line mixes different sizes or styles.
     /// </summary>
     public TextVerticalAlignment VerticalAlignment { get; init; }
@@ -149,6 +159,7 @@ public readonly struct TextFormat
         CharacterSpacing = 0f;
         LineHeightPixels = null;
         BaselineShift = 0f;
+        VariationCoordinates = FontVariationCoordinates.Empty;
         VerticalAlignment = TextVerticalAlignment.Bottom;
     }
 
@@ -175,6 +186,7 @@ public readonly struct TextFormat
         CharacterSpacing = 0f;
         LineHeightPixels = null;
         BaselineShift = 0f;
+        VariationCoordinates = FontVariationCoordinates.Empty;
         VerticalAlignment = TextVerticalAlignment.Bottom;
     }
 }
