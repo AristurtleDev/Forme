@@ -48,6 +48,15 @@ public readonly struct TextLayoutOptions
     public bool BreakAnywhere { get; init; }
 
     /// <summary>
+    /// Gets whether newline characters start new rows. When <see langword="null"/>, newlines break rows.
+    /// </summary>
+    /// <remarks>
+    /// When this is <see langword="false"/>, newline characters remain on the current row and are
+    /// laid out as U+FFFD replacement characters.
+    /// </remarks>
+    public bool? BreakOnNewline { get; init; }
+
+    /// <summary>
     /// Gets the horizontal alignment of each line relative to the draw origin.
     /// </summary>
     public TextHorizontalAlignment Alignment { get; init; }
