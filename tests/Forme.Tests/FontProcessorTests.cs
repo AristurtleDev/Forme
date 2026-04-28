@@ -32,15 +32,17 @@ public class FontProcessorTests
     }
 
     [Fact]
-    public void FromTtf_AsciiCharset_ProducesExpectedGlyphCount()
+    public void FromTtf_AsciiCharset_ProducesExpectedGlyphCountIncludingReplacementGlyph()
     {
         byte[] ttf = LoadTestFont();
         FormeFont font = FormeFont.FromTtf(ttf, CharacterSet.Ascii);
 
         // ASCII charset has 95 codepoints (32-126). Space (32) has no outline and is skipped.
-        // All other printable ASCII characters should be present in Inter.
+        // All other printable ASCII characters should be present in Inter. Processed fonts may
+        // also append a synthetic U+FFFD replacement glyph when the source font does not
+        // provide one.
         Assert.True(font.Glyphs.Count > 0);
-        Assert.True(font.Glyphs.Count <= 95);
+        Assert.True(font.Glyphs.Count <= 96);
     }
 
     [Fact]
@@ -178,13 +180,13 @@ public class FontProcessorTests
     }
 
     [Fact]
-    public void FromTtf_SmallCharset_OnlyContainsRequestedGlyphs()
+    public void FromTtf_SmallCharset_ContainsRequestedGlyphsAndOptionalReplacementGlyph()
     {
         byte[] ttf = LoadTestFont();
         CharacterSet charset = CharacterSet.FromString("ABC");
         FormeFont font = FormeFont.FromTtf(ttf, charset);
 
-        Assert.True(font.Glyphs.Count <= 3);
+        Assert.True(font.Glyphs.Count <= 4);
         Assert.True(font.Glyphs.ContainsKey('A'));
         Assert.True(font.Glyphs.ContainsKey('B'));
         Assert.True(font.Glyphs.ContainsKey('C'));

@@ -40,6 +40,12 @@ public class TextLayoutJobTests
         return FormeFont.FromTtf(ttf, charset);
     }
 
+    private static FormeFont LoadSparseAsciiFont()
+    {
+        byte[] ttf = LoadEmbeddedFont("Forme.Tests.TestData.Inter-Regular.ttf");
+        return FormeFont.FromTtf(ttf, CharacterSet.FromString("A"));
+    }
+
     private static string GetLineText(TextLayoutResult result, int lineIndex)
     {
         TextLayoutLine line = result.Lines[lineIndex];
@@ -501,6 +507,36 @@ public class TextLayoutJobTests
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => font.LayoutText(job));
 
         Assert.Contains("U+00E9", exception.Message);
+    }
+
+    [Fact]
+    public void LayoutText_WithMissingGlyphPolicySkip_UsesBuiltInReplacementGlyph()
+    {
+        FormeFont font = LoadSparseAsciiFont();
+
+        Assert.False(font.SupportsCodePoint('?'));
+        Assert.True(font.SupportsCodePoint(0xFFFD));
+        TextLayoutResult result = font.LayoutText("A\u00E9".AsSpan(), 20f);
+
+        Assert.Equal(2, result.Glyphs.Count);
+        Assert.Equal((int)'A', result.Glyphs[0].CodePoint);
+        Assert.Equal(0xFFFD, result.Glyphs[1].CodePoint);
+        Assert.Equal(1, result.Glyphs[1].TextLength);
+    }
+
+    [Fact]
+    public void LayoutText_JobWithMissingGlyphPolicySkip_UsesBuiltInReplacementGlyph()
+    {
+        FormeFont font = LoadSparseAsciiFont();
+        TextFormat format = new TextFormat(font, 20f);
+        TextLayoutJob job = TextLayoutJob.CreatePlain("A\u00E9", format);
+
+        TextLayoutResult result = font.LayoutText(job);
+
+        Assert.Equal(2, result.Glyphs.Count);
+        Assert.Equal((int)'A', result.Glyphs[0].CodePoint);
+        Assert.Equal(0xFFFD, result.Glyphs[1].CodePoint);
+        Assert.Equal(1, result.Glyphs[1].TextLength);
     }
 
     [Fact]

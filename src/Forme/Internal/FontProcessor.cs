@@ -29,6 +29,7 @@ namespace Forme.Internal;
 internal sealed class FontProcessor : IDisposable
 {
     private const int TextureWidth = 4096;
+    private const int UnicodeReplacementCharacter = 0xFFFD;
 
     private StbTrueType.stbtt_fontinfo? _fontInfo;
     private FontMetrics _metrics;
@@ -173,40 +174,13 @@ internal sealed class FontProcessor : IDisposable
             return;
         }
 
-        FixDegenerateControlPoints();
-
-        int bandHeaderStart = _bandHeaderCurveCount.Count;
-        int bandCurveStart = _bandCurveLocs.Count;
-        int bandsTexelIndex = bandHeaderStart;
-
-        AppendCurveTexture();
-
-        int sizeX = bx2 - bx1 + 1;
-        int sizeY = by2 - by1 + 1;
-        int bandCount = Math.Max(1, Math.Min(16, Math.Min(sizeX, sizeY) / 2));
-
-        AppendBandData(bandCount, sizeX, sizeY, bx1, by1);
-
-        int bandHeaderCount = _bandHeaderCurveCount.Count - bandHeaderStart;
-        _glyphBandRanges.Add(new GlyphBandRange(bandHeaderStart, bandCurveStart, bandHeaderCount));
-
-        FormeGlyph glyph = new FormeGlyph(
-            codePoint: codePoint,
-            boundingBox: new FormeBoundingBox(bx1, by1, bx2, by2),
-            advanceWidth: advanceWidth,
-            leftSideBearing: lsb,
-            bandInfo: new FormeBandInfo(
-                count: bandCount,
-                dimX: (sizeX + bandCount - 1) / bandCount,
-                dimY: (sizeY + bandCount - 1) / bandCount,
-                texCoordX: bandsTexelIndex % TextureWidth,
-                texCoordY: bandsTexelIndex / TextureWidth));
-
-        _glyphs.Add(glyph);
+        AppendGlyph(codePoint, new FormeBoundingBox(bx1, by1, bx2, by2), advanceWidth, lsb);
     }
 
     public FormeFont Build()
     {
+        EnsureReplacementGlyph();
+
         FormeTextureData curveTexture = FinalizeCurveTexture();
         FormeTextureData bandTexture = FinalizeBandTexture();
 
@@ -268,6 +242,122 @@ internal sealed class FontProcessor : IDisposable
                 _scratchCurves[i] = c;
             }
         }
+    }
+
+    // Guarantee a visible missing-glyph marker for non-throwing layout without depending on
+    // the source font to ship either U+FFFD or ASCII question mark outlines.
+    private void EnsureReplacementGlyph()
+    {
+        for (int i = 0; i < _glyphs.Count; i++)
+        {
+            if (_glyphs[i].CodePoint == UnicodeReplacementCharacter)
+            {
+                return;
+            }
+        }
+
+        int unitsPerEm = Math.Max(_metrics.UnitsPerEm, 1);
+        int left = Math.Max(1, (int)MathF.Round(unitsPerEm * 0.10f));
+        int right = Math.Max(left + 1, (int)MathF.Round(unitsPerEm * 0.90f));
+        int bottom = (int)MathF.Round(-unitsPerEm * 0.20f);
+        int top = Math.Max(bottom + 1, (int)MathF.Round(unitsPerEm * 0.80f));
+        int borderThickness = Math.Max(1, (int)MathF.Round(unitsPerEm * 0.09f));
+
+        _scratchCurves.Clear();
+        AddRectangle(left, top - borderThickness, right, top);
+        AddRectangle(left, bottom, right, bottom + borderThickness);
+        AddRectangle(left, bottom, left + borderThickness, top);
+        AddRectangle(right - borderThickness, bottom, right, top);
+
+        AddRectangle(
+            (int)MathF.Round(unitsPerEm * 0.30f),
+            (int)MathF.Round(unitsPerEm * 0.50f),
+            (int)MathF.Round(unitsPerEm * 0.70f),
+            (int)MathF.Round(unitsPerEm * 0.62f));
+        AddRectangle(
+            (int)MathF.Round(unitsPerEm * 0.58f),
+            (int)MathF.Round(unitsPerEm * 0.27f),
+            (int)MathF.Round(unitsPerEm * 0.70f),
+            (int)MathF.Round(unitsPerEm * 0.50f));
+        AddRectangle(
+            (int)MathF.Round(unitsPerEm * 0.30f),
+            (int)MathF.Round(unitsPerEm * 0.38f),
+            (int)MathF.Round(unitsPerEm * 0.42f),
+            (int)MathF.Round(unitsPerEm * 0.50f));
+        AddRectangle(
+            (int)MathF.Round(unitsPerEm * 0.42f),
+            (int)MathF.Round(unitsPerEm * 0.14f),
+            (int)MathF.Round(unitsPerEm * 0.58f),
+            (int)MathF.Round(unitsPerEm * 0.26f));
+        AddRectangle(
+            (int)MathF.Round(unitsPerEm * 0.43f),
+            (int)MathF.Round(unitsPerEm * 0.01f),
+            (int)MathF.Round(unitsPerEm * 0.53f),
+            (int)MathF.Round(unitsPerEm * 0.14f));
+        AddRectangle(
+            (int)MathF.Round(unitsPerEm * 0.43f),
+            (int)MathF.Round(-unitsPerEm * 0.12f),
+            (int)MathF.Round(unitsPerEm * 0.53f),
+            (int)MathF.Round(-unitsPerEm * 0.02f));
+
+        AppendGlyph(
+            UnicodeReplacementCharacter,
+            new FormeBoundingBox(left, bottom, right, top),
+            unitsPerEm,
+            left);
+    }
+
+    private void AddRectangle(int left, int bottom, int right, int top)
+    {
+        AddLineSegment(left, bottom, right, bottom, true);
+        AddLineSegment(right, bottom, right, top, false);
+        AddLineSegment(right, top, left, top, false);
+        AddLineSegment(left, top, left, bottom, false);
+    }
+
+    private void AddLineSegment(float startX, float startY, float endX, float endY, bool isFirst)
+    {
+        _scratchCurves.Add(new FormeCurve
+        {
+            StartPoint = new Vector2(startX, startY),
+            ControlPoint = new Vector2((startX + endX) * 0.5f, (startY + endY) * 0.5f),
+            EndPoint = new Vector2(endX, endY),
+            IsFirst = isFirst
+        });
+    }
+
+    private void AppendGlyph(int codePoint, FormeBoundingBox boundingBox, int advanceWidth, int leftSideBearing)
+    {
+        FixDegenerateControlPoints();
+
+        int bandHeaderStart = _bandHeaderCurveCount.Count;
+        int bandCurveStart = _bandCurveLocs.Count;
+        int bandsTexelIndex = bandHeaderStart;
+
+        AppendCurveTexture();
+
+        int sizeX = boundingBox.X2 - boundingBox.X1 + 1;
+        int sizeY = boundingBox.Y2 - boundingBox.Y1 + 1;
+        int bandCount = Math.Max(1, Math.Min(16, Math.Min(sizeX, sizeY) / 2));
+
+        AppendBandData(bandCount, sizeX, sizeY, boundingBox.X1, boundingBox.Y1);
+
+        int bandHeaderCount = _bandHeaderCurveCount.Count - bandHeaderStart;
+        _glyphBandRanges.Add(new GlyphBandRange(bandHeaderStart, bandCurveStart, bandHeaderCount));
+
+        FormeGlyph glyph = new FormeGlyph(
+            codePoint: codePoint,
+            boundingBox: boundingBox,
+            advanceWidth: advanceWidth,
+            leftSideBearing: leftSideBearing,
+            bandInfo: new FormeBandInfo(
+                count: bandCount,
+                dimX: (sizeX + bandCount - 1) / bandCount,
+                dimY: (sizeY + bandCount - 1) / bandCount,
+                texCoordX: bandsTexelIndex % TextureWidth,
+                texCoordY: bandsTexelIndex / TextureWidth));
+
+        _glyphs.Add(glyph);
     }
 
     private void AppendCurveTexture()

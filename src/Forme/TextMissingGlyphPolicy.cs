@@ -11,7 +11,8 @@ namespace Forme;
 public enum TextMissingGlyphPolicy
 {
     /// <summary>
-    /// Skip missing glyphs and continue layout.
+    /// Substitute a visible fallback glyph, preferring U+FFFD, and otherwise continue layout
+    /// without throwing.
     /// </summary>
     Skip = 0,
 

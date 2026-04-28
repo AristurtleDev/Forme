@@ -31,6 +31,7 @@ namespace Forme;
 public sealed class FormeFont
 {
     private const int UnicodeReplacementCharacter = 0xFFFD;
+    private const int AsciiQuestionMark = '?';
 
     /// <summary>
     /// Gets the vertical metrics for this font.
@@ -41,9 +42,9 @@ public sealed class FormeFont
     /// Gets the processed glyphs, keyed by Unicode code point.
     /// </summary>
     /// <remarks>
-    /// Only glyphs in the <see cref="CharacterSet"/> specified during processing are
-    /// present. Glyphs with no outline (e.g. space) and glyphs not found in the font
-    /// are omitted.
+    /// Requested glyphs that were processed successfully are present. Fonts built from TTF
+    /// data also include a synthetic U+FFFD replacement glyph when the source font did not
+    /// provide one, so non-throwing layout can always render a visible missing glyph marker.
     /// </remarks>
     public IReadOnlyDictionary<int, FormeGlyph> Glyphs { get; }
 
@@ -1386,7 +1387,7 @@ public sealed class FormeFont
             }
             else
             {
-                result.Add(CreateLineLayoutInfo(DecodeSegment(segment, lineStart, !breakOnNewline), lineStart, segment.Length));
+                result.Add(CreateLineLayoutInfo(DecodeSegment(segment, lineStart, in options, !breakOnNewline), lineStart, segment.Length));
             }
 
             if (newlineAt < 0)
@@ -1432,7 +1433,7 @@ public sealed class FormeFont
             }
             else
             {
-                result.Add(CreateLineLayoutInfo(DecodeSegment(segment, lineStart, job.Sections, !breakOnNewline), lineStart, segment.Length));
+                result.Add(CreateLineLayoutInfo(DecodeSegment(segment, lineStart, job.Sections, sectionInfos, layoutOptions.MissingGlyphPolicy, !breakOnNewline), lineStart, segment.Length));
             }
 
             if (newlineAt < 0)
@@ -1540,7 +1541,7 @@ public sealed class FormeFont
     {
         float maxWidth = options.MaxWidth!.Value;
 
-        List<CodePointEntry> chars = DecodeSegment(segment, segmentOffset, replaceNewlines);
+        List<CodePointEntry> chars = DecodeSegment(segment, segmentOffset, in options, replaceNewlines);
         if (chars.Count == 0)
         {
             output.Add(new LineLayoutInfo(new List<CodePointEntry>(), segmentOffset, 0));
@@ -1628,7 +1629,7 @@ public sealed class FormeFont
         TextLayoutOptions layoutOptions = job.LayoutOptions;
         float maxWidth = layoutOptions.MaxWidth!.Value;
 
-        List<JobCodePointEntry> chars = DecodeSegment(segment, segmentOffset, job.Sections, replaceNewlines);
+        List<JobCodePointEntry> chars = DecodeSegment(segment, segmentOffset, job.Sections, sectionInfos, layoutOptions.MissingGlyphPolicy, replaceNewlines);
         if (chars.Count == 0)
         {
             output.Add(new JobLineLayoutInfo(new List<JobCodePointEntry>(), segmentOffset, 0));
@@ -1738,6 +1739,7 @@ public sealed class FormeFont
             int cp = rune.Value == '\n' && replaceNewlines
                 ? UnicodeReplacementCharacter
                 : rune.Value;
+            cp = ResolveCodePoint(cp, options.MissingGlyphPolicy);
             float advance = MeasureIncrement(cp, previousCodePoint, hasPreviousGlyph, scale, options.CharacterSpacing);
 
             if (cursorWidth + advance > maxWidth)
@@ -1781,7 +1783,7 @@ public sealed class FormeFont
                 }
             }
 
-            List<CodePointEntry> ellipsisEntries = DecodeSegment(ellipsisStr, truncationIndex);
+            List<CodePointEntry> ellipsisEntries = DecodeSegment(ellipsisStr, truncationIndex, in options);
             for (int ei = 0; ei < ellipsisEntries.Count; ei++)
             {
                 line.Add(ellipsisEntries[ei]);
@@ -1836,6 +1838,7 @@ public sealed class FormeFont
             int codePoint = rune.Value == '\n' && replaceNewlines
                 ? UnicodeReplacementCharacter
                 : rune.Value;
+            codePoint = ResolveCodePoint(codePoint, job.Sections[sectionIndex].Format, layoutOptions.MissingGlyphPolicy);
             JobCodePointEntry entry = new JobCodePointEntry(i, codePoint, consumed, sectionIndex);
             float advance = MeasureIncrement(entry, previousEntry, hasPreviousGlyph, sectionInfos);
 
@@ -1880,7 +1883,7 @@ public sealed class FormeFont
             int ellipsisSectionIndex = line.Count > 0
                 ? line[line.Count - 1].SectionIndex
                 : GetSectionIndexForTextPosition(truncationIndex, job.Sections, text.Length);
-            List<JobCodePointEntry> ellipsisEntries = DecodeSegment(ellipsisStr.AsSpan(), truncationIndex, ellipsisSectionIndex);
+            List<JobCodePointEntry> ellipsisEntries = DecodeSegment(ellipsisStr.AsSpan(), truncationIndex, ellipsisSectionIndex, job.Sections[ellipsisSectionIndex].Format, layoutOptions.MissingGlyphPolicy);
             for (int ei = 0; ei < ellipsisEntries.Count; ei++)
             {
                 line.Add(ellipsisEntries[ei]);
@@ -2209,7 +2212,7 @@ public sealed class FormeFont
         return true;
     }
 
-    private static List<CodePointEntry> DecodeSegment(ReadOnlySpan<char> segment, int offset, bool replaceNewlines = false)
+    private List<CodePointEntry> DecodeSegment(ReadOnlySpan<char> segment, int offset, in TextLayoutOptions options, bool replaceNewlines = false)
     {
         List<CodePointEntry> list = new(segment.Length);
         int i = 0;
@@ -2219,6 +2222,7 @@ public sealed class FormeFont
             int codePoint = replaceNewlines && rune.Value == '\n'
                 ? UnicodeReplacementCharacter
                 : rune.Value;
+            codePoint = ResolveCodePoint(codePoint, options.MissingGlyphPolicy);
             list.Add(new CodePointEntry(offset + i, codePoint, consumed));
             i += consumed;
         }
@@ -2290,7 +2294,7 @@ public sealed class FormeFont
         return GetSectionIndexForTextPosition(fallbackTextStart, job.Sections, job.Text.Length);
     }
 
-    private static List<JobCodePointEntry> DecodeSegment(ReadOnlySpan<char> segment, int offset, IReadOnlyList<TextSection> sections, bool replaceNewlines = false)
+    private static List<JobCodePointEntry> DecodeSegment(ReadOnlySpan<char> segment, int offset, IReadOnlyList<TextSection> sections, SectionLayoutInfo[] sectionInfos, TextMissingGlyphPolicy policy, bool replaceNewlines = false)
     {
         List<JobCodePointEntry> list = new(segment.Length);
         int i = 0;
@@ -2308,6 +2312,7 @@ public sealed class FormeFont
             int codePoint = replaceNewlines && rune.Value == '\n'
                 ? UnicodeReplacementCharacter
                 : rune.Value;
+            codePoint = ResolveCodePoint(codePoint, sectionInfos[sectionIndex].Format, policy);
             list.Add(new JobCodePointEntry(offset + i, codePoint, consumed, sectionIndex));
             i += consumed;
         }
@@ -2315,18 +2320,59 @@ public sealed class FormeFont
         return list;
     }
 
-    private static List<JobCodePointEntry> DecodeSegment(ReadOnlySpan<char> segment, int offset, int sectionIndex)
+    private static List<JobCodePointEntry> DecodeSegment(ReadOnlySpan<char> segment, int offset, int sectionIndex, TextFormat format, TextMissingGlyphPolicy policy)
     {
         List<JobCodePointEntry> list = new(segment.Length);
         int i = 0;
         while (i < segment.Length)
         {
             Rune.DecodeFromUtf16(segment[i..], out Rune rune, out int consumed);
-            list.Add(new JobCodePointEntry(offset + i, rune.Value, consumed, sectionIndex));
+            int codePoint = ResolveCodePoint(rune.Value, format, policy);
+            list.Add(new JobCodePointEntry(offset + i, codePoint, consumed, sectionIndex));
             i += consumed;
         }
 
         return list;
+    }
+
+    private int ResolveCodePoint(int codePoint, TextMissingGlyphPolicy policy)
+    {
+        if (policy == TextMissingGlyphPolicy.Throw || SupportsCodePoint(codePoint))
+        {
+            return codePoint;
+        }
+
+        if (SupportsCodePoint(UnicodeReplacementCharacter))
+        {
+            return UnicodeReplacementCharacter;
+        }
+
+        if (SupportsCodePoint(AsciiQuestionMark))
+        {
+            return AsciiQuestionMark;
+        }
+
+        return codePoint;
+    }
+
+    private static int ResolveCodePoint(int codePoint, TextFormat format, TextMissingGlyphPolicy policy)
+    {
+        if (policy == TextMissingGlyphPolicy.Throw || format.SupportsCodePoint(codePoint))
+        {
+            return codePoint;
+        }
+
+        if (format.SupportsCodePoint(UnicodeReplacementCharacter))
+        {
+            return UnicodeReplacementCharacter;
+        }
+
+        if (format.SupportsCodePoint(AsciiQuestionMark))
+        {
+            return AsciiQuestionMark;
+        }
+
+        return codePoint;
     }
 
     private static LineLayoutInfo CreateTruncatedLineLayoutInfo(List<CodePointEntry> entries, int fallbackTextStart)
