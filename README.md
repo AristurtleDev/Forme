@@ -88,7 +88,7 @@ FormeRenderer renderer = new FormeRenderer(GraphicsDevice);
 
 // In Draw():
 renderer.Begin();
-renderer.DrawString(fontDevice, "Hello, world!", new Vector2(100, 100), Color.White, sizePixels: 32);
+renderer.DrawString(fontDevice, "Hello, world!", new Vector2(100, 100), 32, Color.White);
 renderer.End();
 ```
 
