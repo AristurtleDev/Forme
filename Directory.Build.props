@@ -8,8 +8,8 @@
 
     <!-- Version Configuration -->
     <PropertyGroup>
-        <Version>0.0.3</Version>
-        <MonoGameVersion>3.8.4.1</MonoGameVersion>
+        <Version>0.0.4</Version>
+        <MonoGameVersion>3.8.5</MonoGameVersion>
     </PropertyGroup>
 
     <PropertyGroup>
