@@ -35,8 +35,8 @@ public sealed class FormeRenderer : IDisposable
     private readonly GraphicsDevice _graphicsDevice;
     private readonly Effect _effect;
     private readonly bool _ownsEffect;
-    private readonly VertexBuffer _vertexBuffer;
-    private readonly IndexBuffer _indexBuffer;
+    private readonly DynamicVertexBuffer _vertexBuffer;
+    private readonly DynamicIndexBuffer _indexBuffer;
     private readonly FormeVertex[] _vertices;
     private readonly int[] _indices;
     private readonly List<QueuedDraw> _queue;
@@ -121,9 +121,17 @@ public sealed class FormeRenderer : IDisposable
         _vertices = new FormeVertex[maxVertices];
         _indices = new int[maxIndices];
 
-        _vertexBuffer = new VertexBuffer(graphicsDevice, FormeVertex.Declaration, maxVertices, BufferUsage.WriteOnly);
+        _vertexBuffer = new DynamicVertexBuffer(
+            graphicsDevice,
+            FormeVertex.Declaration,
+            maxVertices,
+            BufferUsage.WriteOnly);
 
-        _indexBuffer = new IndexBuffer(graphicsDevice, IndexElementSize.ThirtyTwoBits, maxIndices, BufferUsage.WriteOnly);
+        _indexBuffer = new DynamicIndexBuffer(
+            graphicsDevice,
+            IndexElementSize.ThirtyTwoBits,
+            maxIndices,
+            BufferUsage.WriteOnly);
 
         _queue = new List<QueuedDraw>(256);
     }
@@ -414,8 +422,8 @@ public sealed class FormeRenderer : IDisposable
         int vertexCount = _glyphCount * 4;
         int indexCount = _glyphCount * 6;
 
-        _vertexBuffer.SetData(_vertices, 0, vertexCount);
-        _indexBuffer.SetData(_indices, 0, indexCount);
+        _vertexBuffer.SetData(_vertices, 0, vertexCount, SetDataOptions.Discard);
+        _indexBuffer.SetData(_indices, 0, indexCount, SetDataOptions.Discard);
 
         _graphicsDevice.SetVertexBuffer(_vertexBuffer);
         _graphicsDevice.Indices = _indexBuffer;
@@ -450,10 +458,10 @@ public sealed class FormeRenderer : IDisposable
         float ex1 = g.BoundingBox.X2;
         float ey1 = g.BoundingBox.Y2;
 
-        // Pack band texture origin using the texture width as the row stride.
-        // The shader unpacks this using the runtime uniform bandTexSize.x, avoiding
-        // compile-time constant folding that the MGCB/MojoShader transpiler gets wrong.
-        float packedBandTexLoc = (float)g.BandInfo.TexCoordY * 4096f + (float)g.BandInfo.TexCoordX;
+        // Pack band texture origin using the actual texture width as the row stride.
+        // The shader unpacks this using the runtime uniform bandTexSize.x, so the CPU
+        // packing must match the uploaded texture dimensions on every backend.
+        float packedBandTexLoc = (float)g.BandInfo.TexCoordY * draw.Font.BandTexture.Width + (float)g.BandInfo.TexCoordX;
 
         // Store band count directly; shader computes bandMax = bandCount - 1 itself.
         // Storing bandCount avoids a (bandMax+1) expression the transpiler folds incorrectly.
