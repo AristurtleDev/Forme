@@ -146,6 +146,7 @@ public sealed class FormeFontProcessorTests
         public override ContentIdentity SourceIdentity => null!;
         public override string OutputDirectory => string.Empty;
         public override string OutputFilename => string.Empty;
+        public override string ProjectDirectory => string.Empty;
         public override OpaqueDataDictionary Parameters => new OpaqueDataDictionary();
         public override TargetPlatform TargetPlatform => TargetPlatform.DesktopGL;
         public override GraphicsProfile TargetProfile => GraphicsProfile.HiDef;
@@ -153,17 +154,35 @@ public sealed class FormeFontProcessorTests
         public override void AddDependency(string filename) { }
         public override void AddOutputFile(string filename) { }
 
+        [Obsolete]
         public override TOutput BuildAndLoadAsset<TInput, TOutput>(ExternalReference<TInput> sourceAsset, string processorName, OpaqueDataDictionary processorParameters, string importerName)
         {
             throw new NotSupportedException();
         }
 
+        public override TOutput BuildAndLoadAsset<TInput, TOutput>(ExternalReference<TInput> sourceAsset, IContentImporter importer, IContentProcessor processor)
+        {
+            throw new NotSupportedException();
+        }
+
+        [Obsolete]
         public override ExternalReference<TOutput> BuildAsset<TInput, TOutput>(ExternalReference<TInput> sourceAsset, string processorName, OpaqueDataDictionary processorParameters, string importerName, string assetName)
         {
             throw new NotSupportedException();
         }
 
+        public override ExternalReference<TOutput> BuildAsset<TInput, TOutput>(ExternalReference<TInput> sourceAsset, IContentImporter importer, IContentProcessor processor, string? assetName)
+        {
+            throw new NotSupportedException();
+        }
+
+        [Obsolete]
         public override TOutput Convert<TInput, TOutput>(TInput input, string processorName, OpaqueDataDictionary processorParameters)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override TOutput Convert<TInput, TOutput>(TInput input, IContentProcessor processor)
         {
             throw new NotSupportedException();
         }
