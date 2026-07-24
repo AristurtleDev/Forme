@@ -18,21 +18,34 @@
 //   TEXCOORD1: color.xyzw = normalized RGBA (R/255, G/255, B/255, A/255)
 //   TEXCOORD2: dil = (lutU, lutV, invJxx, invJyy)
 //
-// This shader targets SM3 for OpenGL and SM4 for DirectX 11. No integer bitwise ops are used
-// so that the shader compiles cleanly at SM3 where they are unavailable.
+// This shader targets SM3 for OpenGL, SM4 for DirectX 11, and SM6 for DirectX 12 / Vulkan.
+// No integer bitwise ops are used so that the shader compiles cleanly at SM3 where they are
+// unavailable.
 
 #if OPENGL
     #define SV_POSITION POSITION
     #define VS_SHADERMODEL vs_3_0
     #define PS_SHADERMODEL ps_3_0
+    #define PS_OUTPUT_SEMANTIC COLOR0
+    #define sampleTex2D(textureName, samplerName, uv) tex2D(samplerName, uv)
+    #define sampleTex2DLod(textureName, samplerName, uv, lod) tex2Dlod(samplerName, float4(uv, 0, lod))
 #else
-    #define VS_SHADERMODEL vs_4_0
-    #define PS_SHADERMODEL ps_4_0
+    #if FORME_DX12 || FORME_VULKAN
+        #define VS_SHADERMODEL vs_6_0
+        #define PS_SHADERMODEL ps_6_0
+    #else
+        #define VS_SHADERMODEL vs_4_0
+        #define PS_SHADERMODEL ps_4_0
+    #endif
+    #define PS_OUTPUT_SEMANTIC SV_Target
+    #define sampleTex2D(textureName, samplerName, uv) textureName.Sample(samplerName, uv)
+    #define sampleTex2DLod(textureName, samplerName, uv, lod) textureName.SampleLevel(samplerName, uv, lod)
 #endif
 
 float4x4 forme_matrix;     // MVP matrix (orthographic)
 
-texture2D curveTexture;
+#if OPENGL
+Texture2D curveTexture;
 sampler2D curveSampler = sampler_state
 {
     Texture   = <curveTexture>;
@@ -43,7 +56,7 @@ sampler2D curveSampler = sampler_state
     AddressV  = Clamp;
 };
 
-texture2D bandTexture;
+Texture2D bandTexture;
 sampler2D bandSampler = sampler_state
 {
     Texture   = <bandTexture>;
@@ -54,7 +67,7 @@ sampler2D bandSampler = sampler_state
     AddressV  = Clamp;
 };
 
-texture2D bandLUTTexture;
+Texture2D bandLUTTexture;
 sampler2D bandLUTSampler = sampler_state
 {
     Texture   = <bandLUTTexture>;
@@ -64,6 +77,37 @@ sampler2D bandLUTSampler = sampler_state
     AddressU  = Clamp;
     AddressV  = Clamp;
 };
+#else
+Texture2D curveTexture : register(t0);
+SamplerState curveSampler : register(s0) = sampler_state
+{
+    MinFilter = Point;
+    MagFilter = Point;
+    MipFilter = None;
+    AddressU  = Clamp;
+    AddressV  = Clamp;
+};
+
+Texture2D bandTexture : register(t1);
+SamplerState bandSampler : register(s1) = sampler_state
+{
+    MinFilter = Point;
+    MagFilter = Point;
+    MipFilter = None;
+    AddressU  = Clamp;
+    AddressV  = Clamp;
+};
+
+Texture2D bandLUTTexture : register(t2);
+SamplerState bandLUTSampler : register(s2) = sampler_state
+{
+    MinFilter = Point;
+    MagFilter = Point;
+    MipFilter = None;
+    AddressU  = Clamp;
+    AddressV  = Clamp;
+};
+#endif
 
 float2 curveTexSize;   // (width, height) in texels
 float2 bandTexSize;    // (width, height) in texels
@@ -104,13 +148,13 @@ float2 FetchBandTexel(float2 bTexSize, float absTexelIndex)
     float tx = fmod(absTexelIndex, bTexSize.x);
     float ty = floor(absTexelIndex / bTexSize.x);
     float2 uv = (float2(tx, ty) + 0.5) / bTexSize;
-    return tex2Dlod(bandSampler, float4(uv, 0, 0)).rg;
+    return sampleTex2DLod(bandTexture, bandSampler, uv, 0).rg;
 }
 
 float4 FetchCurveTexel(float2 cTexSize, float2 curveLoc)
 {
     float2 uv = (curveLoc + 0.5) / cTexSize;
-    return tex2Dlod(curveSampler, float4(uv, 0, 0));
+    return sampleTex2DLod(curveTexture, curveSampler, uv, 0);
 }
 
 // Calculate the root eligibility for a sample-relative quadratic Bezier curve from the
@@ -262,9 +306,9 @@ float FormeRender(float2 renderCoord, float4 bandTransform, float4 glyphTexInfo)
     return sqrt(saturate(coverage));
 }
 
-float4 PS_Main(VSOutput input) : COLOR0
+float4 PS_Main(VSOutput input) : PS_OUTPUT_SEMANTIC
 {
-    float4 bandTransform = tex2D(bandLUTSampler, input.glyphLoc.zw);
+    float4 bandTransform = sampleTex2D(bandLUTTexture, bandLUTSampler, input.glyphLoc.zw);
     float  coverage      = FormeRender(input.texcoord, bandTransform, input.glyphLoc);
     return float4(input.color.rgb * coverage, coverage * input.color.a);
 }

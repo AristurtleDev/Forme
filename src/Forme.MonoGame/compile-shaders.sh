@@ -17,6 +17,12 @@ for file in "$SHADERS_DIR"/*.fx; do
 
         echo "Compiling $filename (DirectX 11)..."
         $MGFXC "$SHADERS_DIR/$filename.fx" "$SHADERS_DIR/$filename.dx11.mgfxo" /Profile:DirectX_11
+
+        echo "Compiling $filename (DirectX 12)..."
+        $MGFXC "$SHADERS_DIR/$filename.fx" "$SHADERS_DIR/$filename.dx12.mgfxo" /Profile:DirectX_12 /Defines:FORME_DX12
+
+        echo "Compiling $filename (Vulkan)..."
+        $MGFXC "$SHADERS_DIR/$filename.fx" "$SHADERS_DIR/$filename.vk.mgfxo" /Profile:Vulkan /Defines:FORME_VULKAN
     fi
 done
 
