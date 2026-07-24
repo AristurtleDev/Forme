@@ -20,6 +20,8 @@
          The Compile* targets only run when the .fx source is newer than the .mgfxo. -->
     <EmbeddedResource Include="Shaders\FormeShader.ogl.mgfxo" />
     <EmbeddedResource Include="Shaders\FormeShader.dx11.mgfxo" />
+    <EmbeddedResource Include="Shaders\FormeShader.dx12.mgfxo" />
+    <EmbeddedResource Include="Shaders\FormeShader.vk.mgfxo" />
   </ItemGroup>
 
   <Target Name="CompileShadersOGL" BeforeTargets="BeforeBuild"
@@ -36,6 +38,18 @@
           Outputs="Shaders\FormeShader.dx11.mgfxo"
           Condition="'$(OS)' == 'Windows_NT'">
     <Exec Command="dotnet tool run mgfxc Shaders\FormeShader.fx Shaders\FormeShader.dx11.mgfxo /Profile:DirectX_11" />
+  </Target>
+
+  <Target Name="CompileShadersDX12" BeforeTargets="BeforeBuild"
+          Inputs="Shaders\FormeShader.fx"
+          Outputs="Shaders\FormeShader.dx12.mgfxo">
+    <Exec Command="dotnet tool run mgfxc Shaders\FormeShader.fx Shaders\FormeShader.dx12.mgfxo /Profile:DirectX_12 /Defines:FORME_DX12" />
+  </Target>
+
+  <Target Name="CompileShadersVulkan" BeforeTargets="BeforeBuild"
+          Inputs="Shaders\FormeShader.fx"
+          Outputs="Shaders\FormeShader.vk.mgfxo">
+    <Exec Command="dotnet tool run mgfxc Shaders\FormeShader.fx Shaders\FormeShader.vk.mgfxo /Profile:Vulkan /Defines:FORME_VULKAN" />
   </Target>
 
 </Project>
