@@ -1,14 +1,18 @@
 <Solution>
   <Folder Name="/demo/" />
   <Folder Name="/demo/GPURenderingDemo/">
+    <Project Path="demo/GPURenderingDemo/Forme.MonoGame.GPU.Demo.DesktopVK/Forme.MonoGame.GPU.Demo.DesktopVK.csproj" />
     <Project Path="demo/GPURenderingDemo/Forme.MonoGame.GPU.Demo.DesktopGL/Forme.MonoGame.GPU.Demo.DesktopGL.csproj" />
     <Project Path="demo/GPURenderingDemo/Forme.MonoGame.GPU.Demo.Shared/Forme.MonoGame.GPU.Demo.Shared.csproj" />
     <Project Path="demo/GPURenderingDemo/Forme.MonoGame.GPU.Demo.WindowsDX/Forme.MonoGame.GPU.Demo.WindowsDX.csproj" />
+    <Project Path="demo/GPURenderingDemo/Forme.MonoGame.GPU.Demo.WindowsDX12/Forme.MonoGame.GPU.Demo.WindowsDX12.csproj" />
   </Folder>
   <Folder Name="/demo/SpriteFontRenderingDemo/">
+    <Project Path="demo/SpriteFontRenderingDemo/Forme.MonoGame.SpriteFont.Demo.DesktopVK/Forme.MonoGame.SpriteFont.Demo.DesktopVK.csproj" />
     <Project Path="demo/SpriteFontRenderingDemo/Forme.MonoGame.SpriteFont.Demo.DesktopGL/Forme.MonoGame.SpriteFont.Demo.DesktopGL.csproj" />
     <Project Path="demo/SpriteFontRenderingDemo/Forme.MonoGame.SpriteFont.Demo.Shared/Forme.MonoGame.SpriteFont.Demo.Shared.csproj" />
     <Project Path="demo/SpriteFontRenderingDemo/Forme.MonoGame.SpriteFont.Demo.WindowsDX/Forme.MonoGame.SpriteFont.Demo.WindowsDX.csproj" />
+    <Project Path="demo/SpriteFontRenderingDemo/Forme.MonoGame.SpriteFont.Demo.WindowsDX12/Forme.MonoGame.SpriteFont.Demo.WindowsDX12.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Forme.MonoGame.Content.Pipeline/Forme.MonoGame.Content.Pipeline.csproj" />
