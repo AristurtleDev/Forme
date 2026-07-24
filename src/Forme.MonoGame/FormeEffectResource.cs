@@ -5,7 +5,7 @@
 using System;
 using System.IO;
 using System.Reflection;
-using Microsoft.Xna.Framework;
+using MonoGame.Framework.Utilities;
 
 namespace Forme.MonoGame;
 
@@ -53,38 +53,19 @@ internal static class FormeEffectResource
 
     private static string GetShaderExtension()
     {
-        Assembly frameworkAssembly = typeof(Game).Assembly;
-
-        Type? shaderType = frameworkAssembly.GetType("Microsoft.Xna.Framework.Graphics.Shader");
-        if (shaderType == null)
+        switch (PlatformInfo.GraphicsBackend)
         {
-            throw new InvalidOperationException(
-                "Cannot locate Microsoft.Xna.Framework.Graphics.Shader in the MonoGame assembly.");
-        }
-
-        PropertyInfo? profileProperty = shaderType.GetProperty("Profile", BindingFlags.Public | BindingFlags.Static);
-
-        if (profileProperty == null)
-        {
-            throw new InvalidOperationException("Cannot locate Shader.Profile static property in the MonoGame assembly.");
-        }
-
-        object? value = profileProperty.GetValue(null);
-        if (value == null)
-        {
-            throw new InvalidOperationException("Shader.Profile returned null.");
-        }
-
-        int profile = (int)value;
-
-        switch (profile)
-        {
-            case 0:
+            case GraphicsBackend.OpenGL:
                 return "ogl";
-            case 1:
+            case GraphicsBackend.DirectX:
                 return "dx11";
+            case GraphicsBackend.DirectX12:
+                return "dx12";
+            case GraphicsBackend.Vulkan:
+                return "vk";
             default:
-                throw new InvalidOperationException($"Unknown MonoGame shader profile value: {profile}.");
+                throw new NotSupportedException(
+                    $"The MonoGame graphics backend '{PlatformInfo.GraphicsBackend}' is not supported by the embedded Forme shader resources.");
         }
     }
 }
